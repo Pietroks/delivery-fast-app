@@ -108,13 +108,3 @@ Escaneie o QR Code com a câmera do celular (iOS) ou via app Expo Go (Android).
 Este projeto está sob a licença MIT. Sinta-se à vontade para estudar e utilizar o código!
 
 ---
-
-### Como subir tudo no GitHub agora:
-
-Abra o terminal na pasta raiz (`delivery_fast_app`) e rode:
-
-```bash
-git add .
-git commit -m "docs: adiciona README.md e corrige typings no backend"
-git push
-```
