@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { supabase } from "../services/supabase";
 import axios from "axios";
+import { success } from "zod";
 
 // ============================================================================
 // Tipos
@@ -34,16 +35,22 @@ interface EntregaDB {
   status?: string;
 }
 
+type EntregaComCoordsValidas = EntregaDB & { lat: number; lon: number };
+
 // ============================================================================
 // Funções auxiliares
 // ============================================================================
 
-function gerarResumoRota(totalEntregas: number): ResumoRota {
+function calcularResumoReal(totalEntregas: number, distanciaMetros: number = 0, duracaoSegundos: number = 0): ResumoRota {
+  const distanciaKm = Number((distanciaMetros / 1000).toFixed(1));
+  const tempoEstimadoMin = Math.round(duracaoSegundos / 60);
+  const economiaEstimadaRs = Number((distanciaKm * 0.45).toFixed(2));
+
   return {
     totalEntregas,
-    distanciaKm: Number((totalEntregas * 3.5).toFixed(1)),
-    tempoEstimadoMin: totalEntregas * 10,
-    economiaEstimadaRs: Number((totalEntregas * 2.2).toFixed(2)),
+    distanciaKm,
+    tempoEstimadoMin,
+    economiaEstimadaRs,
   };
 }
 
@@ -57,6 +64,70 @@ function formatarParadas(entregas: EntregaDB[]): ParadaFormatada[] {
     lat: item.lat ?? 0,
     lon: item.lon ?? 0,
   }));
+}
+
+/**
+ * Geocodifica dinamicamente identificando a cidade pelo GPS do usuário
+ * ou pela cidade passada no cadastro.
+ */
+async function geocodificarEndereco(
+  enderecoRua: string,
+  cidadeInformada?: string,
+  latGPS?: number,
+  lonGPS?: number,
+): Promise<{ lat: number; lon: number }> {
+  try {
+    let cidadeContexto = cidadeInformada;
+
+    // 1. Se recebemos coordenadas válidas do GPS, descobrimos a cidade dinamicamente via Reverse Geocoding
+    if (!cidadeContexto && latGPS && lonGPS && latGPS !== 0 && lonGPS !== 0) {
+      try {
+        const { data: revData } = await axios.get("https://nominatim.openstreetmap.org/reverse", {
+          params: { lat: latGPS, lon: lonGPS, format: "json" },
+          headers: { "User-Agent": "DeliveryFastApp/1.0" },
+          timeout: 2500,
+        });
+
+        const addr = revData?.address;
+        cidadeContexto = addr?.city || addr?.town || addr?.municipality || addr?.village;
+      } catch {}
+    }
+
+    // 2. Monta a busca dinâmica com Rua + Cidade Contexto + Brasil
+    const termos = [enderecoRua, cidadeContexto, "Brasil"].filter(Boolean).join(", ");
+
+    const paramsBase = { format: "json", limit: 1, countrycodes: "br" };
+
+    let { data } = await axios.get("https://nominatim.openstreetmap.org/search", {
+      params: { ...paramsBase, q: termos },
+      headers: { "User-Agent": "DeliveryFastApp/1.0" },
+      timeout: 3000,
+    });
+
+    // 3. Fallback: Se não achou com o número/complemento exato, simplifica a rua
+    if (!data || data.length === 0) {
+      const ruaSimplificada = enderecoRua
+        .replace(/,\s*Nº?\s*\d+.*$/i, "")
+        .replace(/,\s*\d+.*$/, "")
+        .trim();
+      const termosSimplificados = [ruaSimplificada, cidadeContexto, "Brasil"].filter(Boolean).join(", ");
+
+      const res = await axios.get("https://nominatim.openstreetmap.org/search", {
+        params: { ...paramsBase, q: termosSimplificados },
+        headers: { "User-Agent": "DeliveryFastApp/1.0" },
+        timeout: 3000,
+      });
+      data = res.data;
+    }
+
+    if (data && data.length > 0) {
+      return {
+        lat: parseFloat(data[0].lat),
+        lon: parseFloat(data[0].lon),
+      };
+    }
+  } catch {}
+  return { lat: 0, lon: 0 };
 }
 
 // ============================================================================
@@ -73,15 +144,18 @@ async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply)
     const agora = new Date();
     const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
 
+    // Captura cidade enviada ou coordenadas do GPS enviadas no cadastro
+    const coords = await geocodificarEndereco(enderecoFormatado, body.cidade, body.latUsuario, body.lonUsuario);
+
     const { data, error } = await supabase
       .from("entregas")
       .insert([
         {
           rua: enderecoFormatado,
-          bairro: body.bairro || body.cidade || "Santo Ângelo, RS",
+          bairro: body.bairro || body.cidade || "",
           horario_estimado: horaAtual,
-          lat: 0,
-          lon: 0,
+          lat: coords.lat,
+          lon: coords.lon,
           nome_destinatario: body.nomeDestinatario,
           telefone: body.telefone,
           referencia: body.referencia,
@@ -116,36 +190,29 @@ async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyRep
   }
 
   const paradasFormatadas = formatarParadas((entregas as EntregaDB[]) || []);
-  const resumo = gerarResumoRota(paradasFormatadas.length);
+
+  let distanciaMetros = 0;
+  let duracaoSegundos = 0;
+
+  const coordsValidas = paradasFormatadas.filter((p) => p.lat !== 0 && p.lon !== 0).map((p) => `${p.lon},${p.lat}`);
+
+  if (coordsValidas.length >= 2) {
+    try {
+      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsValidas.join(";")}`;
+      const { data } = await axios.get(osrmUrl, { timeout: 3000 });
+      if (data?.routes?.[0]) {
+        distanciaMetros = data.routes[0].distance;
+        duracaoSegundos = data.routes[0].duration;
+      }
+    } catch {}
+  }
+
+  const resumo = calcularResumoReal(paradasFormatadas.length, distanciaMetros, duracaoSegundos);
 
   return reply.status(200).send({
     paradas: paradasFormatadas,
     resumo,
   });
-}
-
-async function geocodificarEndereco(endereco: string): Promise<{ lat: number; lon: number }> {
-  try {
-    const { data } = await axios.get("https://nominatim.openstreetmap.org/search", {
-      params: {
-        q: endereco,
-        format: "json",
-        limit: 1,
-        countrycodes: "br",
-      },
-      headers: { "User-Agent": "DeliveryFastApp/1.0" },
-    });
-
-    if (data && data.length > 0) {
-      return {
-        lat: parseFloat(data[0].lat),
-        lon: parseFloat(data[0].lon),
-      };
-    }
-  } catch {
-    // retorna 0,0 em caso de falha
-  }
-  return { lat: 0, lon: 0 };
 }
 
 async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply) {
@@ -155,7 +222,6 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
       lonUsuario?: number;
     };
 
-    // 1. Busca entregas pendentes
     const { data: entregas, error } = await supabase
       .from("entregas")
       .select("*")
@@ -168,33 +234,33 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
 
     const entregasTipadas = entregas as EntregaDB[];
 
-    // 2. Garante lat/lon via geocodificação para as entregas
+    // Tenta re-geocodificar qualquer entrega que esteja com lat/lon zeradas
     const entregasComCoords = await Promise.all(
       entregasTipadas.map(async (item) => {
-        if (item.lat && item.lon && (item.lat !== 0 || item.lon !== 0)) {
+        if (item.lat !== undefined && item.lon !== undefined && item.lat !== 0 && item.lon !== 0) {
           return item;
         }
-        try {
-          const coords = await geocodificarEndereco(item.rua);
-          return { ...item, lat: coords.lat, lon: coords.lon };
-        } catch {
-          return { ...item, lat: 0, lon: 0 };
+        const coords = await geocodificarEndereco(item.rua, item.bairro, latUsuario, lonUsuario);
+        if (coords.lat !== 0 && coords.lon !== 0) {
+          await supabase.from("entregas").update({ lat: coords.lat, lon: coords.lon }).eq("id", item.id);
         }
+        return { ...item, lat: coords.lat, lon: coords.lon };
       }),
     );
 
-    const pontosValidos = entregasComCoords.filter((e) => e.lat !== 0 && e.lon !== 0);
+    const pontosValidos = entregasComCoords.filter(
+      (e): e is EntregaComCoordsValidas => e.lat !== undefined && e.lon !== undefined && e.lat !== 0 && e.lon !== 0,
+    );
 
     if (pontosValidos.length === 0) {
       return reply.status(200).send({
         sucesso: true,
-        mensagem: "Nenhum endereço válido encontrado para otimizar.",
+        mensagem: "Não foi possível encontrar as coordenadas dos endereços.",
       });
     }
 
-    // 3. Monta lista de coordenadas (Ponto Inicial = Posição do Usuário)
     let coordsArray: string[] = [];
-    const temLocalizacaoUsuario = latUsuario && lonUsuario && latUsuario !== 0 && lonUsuario !== 0;
+    const temLocalizacaoUsuario = Boolean(latUsuario && lonUsuario && latUsuario !== 0 && lonUsuario !== 0);
 
     if (temLocalizacaoUsuario) {
       coordsArray.push(`${lonUsuario},${latUsuario}`);
@@ -205,34 +271,31 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
     if (coordsArray.length < 2) {
       return reply.status(200).send({
         sucesso: true,
-        mensagem: "Endereço atualizado no mapa.",
+        mensagem: "Rota pronta com 1 ponto.",
       });
     }
 
     const coordsString = coordsArray.join(";");
-    const osrmUrl = `https://router.project-osrm.org/trip/v1/driving/${coordsString}?source=first&roundtrip=false`;
+    const osrmUrl = `https://router.project-osrm.org/trip/v1/driving/${coordsString}?source=first&destination=any&roundtrip=false`;
 
     const { data: osrmData } = await axios.get(osrmUrl, { timeout: 5000 });
 
     if (osrmData && osrmData.code === "Ok" && osrmData.waypoints) {
       const waypoints = osrmData.waypoints as Array<{ waypoint_index: number }>;
 
-      // Mapeia cada entrega associando-a à sua ordem calculada pelo OSRM
+      const tripInfo = osrmData.trips?.[0];
+      const distanciaRealMetros = tripInfo?.distance ?? 0;
+      const tempoRealSegundos = tripInfo?.duration ?? 0;
+
       const entregasComOrdem = pontosValidos.map((entrega, indexOriginal) => {
-        // Se a localização do usuário foi incluída, o ponto correspondente à entrega no OSRM fica em indexOriginal + 1
         const indexOsrm = temLocalizacaoUsuario ? indexOriginal + 1 : indexOriginal;
         const ordemCalculada = waypoints[indexOsrm]?.waypoint_index ?? indexOriginal;
 
-        return {
-          entrega,
-          ordemCalculada,
-        };
+        return { entrega, ordemCalculada };
       });
 
-      // Ordena a lista do menor 'waypoint_index' para o maior
       entregasComOrdem.sort((a, b) => a.ordemCalculada - b.ordemCalculada);
 
-      // 4. Salva no Supabase a nova ordem em sequência (1, 2, 3...)
       for (let i = 0; i < entregasComOrdem.length; i++) {
         const elemento = entregasComOrdem[i];
         if (elemento && elemento.entrega) {
@@ -246,12 +309,73 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
             .eq("id", elemento.entrega.id);
         }
       }
+
+      const resumoReal = calcularResumoReal(pontosValidos.length, distanciaRealMetros, tempoRealSegundos);
+
+      return reply.status(200).send({
+        sucesso: true,
+        mensagem: "Rota otimizada com sucesso!",
+        resumo: resumoReal,
+      });
     }
 
-    return reply.status(200).send({ sucesso: true, mensagem: "Rota otimizada com sucesso!" });
+    return reply.status(200).send({ sucesso: true, mensagem: "Não foi possível calcular com a API do OSRM." });
   } catch (err: unknown) {
     const mensagem = err instanceof Error ? err.message : "Falha ao otimizar a rota.";
     return reply.status(200).send({ sucesso: false, erro: mensagem });
+  }
+}
+
+async function historicoGeralHandler(request: FastifyRequest, reply: FastifyReply) {
+  const { periodo } = (request.query as { periodo?: string }) || {};
+
+  let query = supabase.from("entregas").select("*").eq("status", "entregue").order("updated_at", { ascending: false });
+
+  if (periodo === "hoje") {
+    const inicioHoje = new Date();
+    inicioHoje.setHours(0, 0, 0, 0);
+    query = query.gte("updated_at", inicioHoje.toISOString());
+  }
+
+  const { data: entregasConcluidas, error } = await query;
+
+  if (error) {
+    return reply.status(500).send({ sucesso: false, erro: "Erro ao consultar o histórico" });
+  }
+
+  const totalConcluidas = entregasConcluidas?.length || 0;
+  let ultimaEntregaHora = "--:--";
+
+  if (totalConcluidas > 0 && entregasConcluidas[0].updated_at) {
+    const dataUltima = new Date(entregasConcluidas[0].updated_at);
+    ultimaEntregaHora = dataUltima.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  return reply.status(200).send({
+    sucesso: true,
+    entregas: entregasConcluidas || [],
+    resumo: {
+      totalConcluidas,
+      ultimaEntregaHora,
+    },
+  });
+}
+
+async function concluirTodasEntregasHandler(request: FastifyRequest, reply: FastifyReply) {
+  try {
+    const { error } = await supabase.from("entregas").update({ status: "entregue" }).or("status.neq.entregue,status.is.null");
+
+    if (error) {
+      request.log.error({ error }, "Erro ao concluir todas as entregas.");
+      return reply.status(500).send({ sucesso: false, erro: "Erro ao concluir entregas." });
+    }
+
+    return reply.status(200).send({ sucesso: true, mensagem: "Todas as entregas foram concluídas!" });
+  } catch (error) {
+    return reply.status(500).send({ sucesso: false, mensagem: "Erro ao processar requisição." });
   }
 }
 
@@ -327,4 +451,7 @@ export async function rotasRoutes(app: FastifyInstance) {
       return reply.status(200).send({ sucesso: true });
     },
   );
+
+  app.get("/api/v1/entregas/historico-hoje", historicoGeralHandler);
+  app.put("/api/v1/rotas/concluir-todas", concluirTodasEntregasHandler);
 }

@@ -1,12 +1,15 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { StatusBar, Text, TouchableOpacity, View, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Location from "expo-location";
+import * as Haptics from "expo-haptics";
 import { api } from "../services/api";
 import { GerenciadorRotas } from "../components/GerenciadorRotas";
 import { abrirRotaGoogleMaps } from "../utils/navigation";
+import { ResumoRotaCard, ResumoRotaData } from "../components/ResumoRotaCard";
+import { carregarRotasLocalmente, salvarRotasLocalmente } from "../services/storage";
 
 export interface Parada {
   id: string;
@@ -18,36 +21,39 @@ export interface Parada {
   lon: number;
 }
 
-interface ResumoRota {
-  totalEntregas: number;
-  distanciaKm: number;
-  tempoEstimadoMin: number;
-  economiaEstimadaRs: number;
-}
-
 export default function HomeScreen() {
   const [rotas, setRotas] = useState<Parada[]>([]);
-  const [resumo, setResumo] = useState<ResumoRota | null>(null);
+  const [resumo, setResumo] = useState<ResumoRotaData | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [otimizando, setOtimizando] = useState(false);
+  const [concluirGeral, setConcluirGeral] = useState(false);
 
   const carregarEntregas = useCallback(async () => {
     setCarregando(true);
     try {
       const response = await api.get("/rotas/atual");
       if (response.data) {
+        const paradasServidor = response.data.paradas || [];
+        const resumoServidor = response.data.resumo || null;
+
         setRotas(response.data.paradas || []);
         setResumo(response.data.resumo || null);
+
+        await salvarRotasLocalmente(paradasServidor, resumoServidor);
       }
     } catch {
-      setRotas([]);
+      const cacheLocal = await carregarRotasLocalmente();
+      setRotas(cacheLocal.paradas);
+      setResumo(cacheLocal.resumo);
+      if (cacheLocal.paradas.length > 0) {
+        Alert.alert("Modo offline", "Não foi possível conectar ao servidor. Exibindo a rota salva localmente no dispositivo.");
+      }
     } finally {
       setCarregando(false);
     }
   }, []);
 
   const handleOtimizarRota = useCallback(async () => {
-    // Agora permite otimizar mesmo com apenas 1 entrega cadastrada (GPS do Usuário + 1 Entrega)
     if (rotas.length === 0) {
       Alert.alert("Atenção", "Cadastre pelo menos 1 entrega para otimizar a rota.");
       return;
@@ -105,21 +111,43 @@ export default function HomeScreen() {
     }
   }, [rotas]);
 
+  const handleConcluirTodas = useCallback(() => {
+    if (rotas.length === 0) return;
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
+    Alert.alert(
+      "Finalizar todas as entregas?",
+      `Deseja marcar todas as ${rotas.length} entregas da rota atual como concluídas? Elas serão movidas para o seu histórico.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Sim, finalizar tudo",
+          style: "default",
+          onPress: async () => {
+            setConcluirGeral(true);
+            try {
+              await api.put("/rotas/concluir-todas");
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              await carregarEntregas();
+              Alert.alert("Sucesso", "Todas as entregas foram concluídas!");
+            } catch {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert("Erro", "Não foi possível finalizar as entregas.");
+            } finally {
+              setConcluirGeral(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [rotas.length, carregarEntregas]);
+
   useFocusEffect(
     useCallback(() => {
       carregarEntregas();
     }, [carregarEntregas]),
   );
-
-  const totalEntregas = useMemo(() => resumo?.totalEntregas ?? rotas.length, [resumo?.totalEntregas, rotas.length]);
-  const distanciaTotal = useMemo(() => resumo?.distanciaKm ?? 0, [resumo?.distanciaKm]);
-  const tempoEstimado = useMemo(() => {
-    if (!resumo?.tempoEstimadoMin) return "0h 0m";
-    const h = Math.floor(resumo.tempoEstimadoMin / 60);
-    const m = resumo.tempoEstimadoMin % 60;
-    return `${h}h ${m}m`;
-  }, [resumo?.tempoEstimadoMin]);
-  const economiaEstimada = useMemo(() => resumo?.economiaEstimadaRs ?? 0, [resumo?.economiaEstimadaRs]);
 
   const temRotas = rotas.length > 0;
 
@@ -138,27 +166,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <View className="bg-emerald-900 p-4 rounded-2xl border border-[#22334F] mb-4">
-          <Text className="text-[#94A3B8] text-xs font-medium mb-3">Resumo da rota</Text>
-          <View className="flex-row justify-between">
-            <View>
-              <Text className="text-white font-bold text-base">{totalEntregas}</Text>
-              <Text className="text-[#94A3B8] text-[10px]">entregas</Text>
-            </View>
-            <View>
-              <Text className="text-white font-bold text-base">{distanciaTotal} km</Text>
-              <Text className="text-[#94A3B8] text-[10px]">distância</Text>
-            </View>
-            <View>
-              <Text className="text-white font-bold text-base">{tempoEstimado}</Text>
-              <Text className="text-[#94A3B8] text-[10px]">tempo est.</Text>
-            </View>
-            <View>
-              <Text className="text-emerald-400 font-bold text-base">R$ {economiaEstimada.toFixed(2).replace(".", ",")}</Text>
-              <Text className="text-[#94A3B8] text-[10px]">economia est.</Text>
-            </View>
-          </View>
-        </View>
+        <ResumoRotaCard resumo={resumo} fallbackTotalEntregas={rotas.length} />
 
         <View className="flex-row items-center justify-between mb-3">
           <Text className="text-white font-bold text-sm">Sua rota otimizada</Text>
@@ -186,22 +194,39 @@ export default function HomeScreen() {
             <ActivityIndicator size="small" color="#22c55e" />
           </View>
         ) : (
-          <GerenciadorRotas paradas={rotas} onAtualizarLista={carregarEntregas} />
+          <GerenciadorRotas paradas={rotas} onAtualizarLista={carregarEntregas} onReordenarLocal={setRotas} />
         )}
 
-        <TouchableOpacity
-          className={`py-3.5 rounded-xl flex-row justify-center items-center mt-2 ${
-            temRotas ? "bg-[#22c55e] active:bg-emerald-600" : "bg-[#1e2e48] opacity-50"
-          }`}
-          onPress={temRotas ? handleIniciarRota : undefined}
-          disabled={!temRotas}
-          accessibilityLabel="Iniciar rota"
-        >
-          <Ionicons name="play" size={16} color={temRotas ? "#000000" : "#64748b"} style={{ marginRight: 6 }} />
-          <Text className={`font-bold text-sm ${temRotas ? "text-black" : "text-[#64748b]"}`}>Iniciar rota</Text>
-        </TouchableOpacity>
+        <View className="flex-row gap-2 mt-2">
+          <TouchableOpacity
+            className={`flex-1 py-3.5 rounded-xl flex-row justify-center items-center mt-2 ${
+              temRotas ? "bg-[#22c55e] active:bg-emerald-600" : "bg-[#1e2e48] opacity-50"
+            }`}
+            onPress={temRotas ? handleIniciarRota : undefined}
+            disabled={!temRotas || concluirGeral}
+            accessibilityLabel="Iniciar rota"
+          >
+            <Ionicons name="play" size={16} color={temRotas ? "#000000" : "#64748b"} style={{ marginRight: 6 }} />
+            <Text className={`font-bold text-sm ${temRotas ? "text-black" : "text-[#64748b]"}`}>Iniciar no GPS</Text>
+          </TouchableOpacity>
 
-        <Text className="text-center text-xs text-[#94A3B8] py-3">Você será redirecionado para o seu aplicativo de mapas preferido.</Text>
+          {temRotas && (
+            <TouchableOpacity
+              className="bg-[#152033] border border-emerald-500/50 px-4 py-3.5 rounded-xl flex-row justify-center items-center active:bg-emerald-950"
+              onPress={handleConcluirTodas}
+              disabled={concluirGeral}
+            >
+              {concluirGeral ? (
+                <ActivityIndicator size="small" color="#22c55e" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-done-sharp" size={16} color="#22c55e" style={{ marginRight: 6 }} />
+                  <Text className="text-emerald-400 font-bold text-xs">Finalizar todas</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </SafeAreaView>
   );

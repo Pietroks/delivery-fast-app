@@ -1,7 +1,8 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Alert, Modal, Text, TextInput, TouchableOpacity, View, FlatList } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import * as Haptics from "expo-haptics";
 import { Parada } from "../screens/HomeScreen";
 import { api } from "../services/api";
 
@@ -9,99 +10,119 @@ interface GerenciadorRotasProps {
   paradas: Parada[];
   onAtualizarLista: () => void;
   onAdicionarEntrega?: () => void;
+  onReordenarLocal?: (novasParadas: Parada[]) => void;
 }
 
-export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({ paradas, onAtualizarLista, onAdicionarEntrega }) => {
+export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({ paradas, onAtualizarLista, onAdicionarEntrega, onReordenarLocal }) => {
   const navigation = useNavigation<any>();
 
+  const [listaLocal, setListaLocal] = useState<Parada[]>(paradas);
   const [paradaEmEdicao, setParadaEmEdicao] = useState<Parada | null>(null);
   const [textoEditado, setTextoEditado] = useState("");
   const [carregandoAcao, setCarregandoAcao] = useState(false);
 
-  // Navegar para adicinar entrega
+  useEffect(() => {
+    setListaLocal(paradas);
+  }, [paradas]);
+
   const handleNavegarNovaEntrega = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
     if (onAdicionarEntrega) {
       onAdicionarEntrega();
     } else {
-      navigation.navigate("NovaEntrega"); // Ajuste o nome da rota conforme seu Navigator se necessário
+      navigation.navigate("NovaEntrega");
     }
   }, [navigation, onAdicionarEntrega]);
 
-  // 1. Priorizar (Definir como Primeira)
-  const handlePriorizar = useCallback(
-    async (indexAtual: number) => {
-      if (indexAtual === 0) return;
+  const reordenarEOtimizarUI = useCallback(
+    async (novaListaProcessada: Parada[]) => {
+      const paradasReordenadas = novaListaProcessada.map((p, i) => ({ ...p, ordem: i + 1 }));
 
-      const novaLista = [...paradas];
-      const [itemPriorizado] = novaLista.splice(indexAtual, 1);
-      novaLista.unshift(itemPriorizado);
+      setListaLocal(paradasReordenadas);
 
-      const paradasReordenadas = novaLista.map((p, i) => ({ ...p, ordem: i + 1 }));
+      onReordenarLocal?.(paradasReordenadas);
 
       try {
-        await api.put("/rotas/reordenar", { paradas: paradasReordenadas });
-        onAtualizarLista();
+        await api.put("/rotas/reordenar", {
+          paradas: paradasReordenadas.map((p) => ({ id: p.id, ordem: p.ordem })),
+        });
       } catch {
-        Alert.alert("Erro", "Não foi possível definir a entrega como prioridade.");
+        setListaLocal(paradas);
+        onReordenarLocal?.(paradas);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Erro de conexão", "Não foi possível salvar a nova ordem no servidor.");
       }
     },
-    [paradas, onAtualizarLista],
+    [paradas, onReordenarLocal],
+  );
+
+  const handleMoverPosicao = useCallback(
+    (indexAtual: number, direcao: "cima" | "baixo") => {
+      const novoIndex = direcao === "cima" ? indexAtual - 1 : indexAtual + 1;
+      if (novoIndex < 0 || novoIndex >= listaLocal.length) return;
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const novaLista = [...listaLocal];
+      const [itemRemovido] = novaLista.splice(indexAtual, 1);
+      novaLista.splice(novoIndex, 0, itemRemovido);
+
+      reordenarEOtimizarUI(novaLista);
+    },
+    [listaLocal, reordenarEOtimizarUI],
   );
 
   // 2. Concluir Entrega
   const handleConcluir = useCallback(
     async (item: Parada) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const novaLista = listaLocal.filter((p) => p.id !== item.id);
+      setListaLocal(novaLista);
+      onReordenarLocal?.(novaLista);
+
       try {
         await api.put(`/entregas/${item.id}/status`, { status: "entregue" });
         onAtualizarLista();
       } catch {
+        setListaLocal(paradas);
+        onReordenarLocal?.(paradas);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert("Erro", "Não foi possível marcar como entregue.");
       }
     },
-    [onAtualizarLista],
-  );
-
-  // 3. Pular Entrega (Joga para o final da fila)
-  const handlePular = useCallback(
-    async (indexAtual: number) => {
-      if (paradas.length <= 1) return;
-
-      const novaLista = [...paradas];
-      const [itemPulado] = novaLista.splice(indexAtual, 1);
-      novaLista.push(itemPulado);
-
-      const paradasReordenadas = novaLista.map((p, i) => ({ ...p, ordem: i + 1 }));
-
-      try {
-        await api.put("/rotas/reordenar", { paradas: paradasReordenadas });
-        onAtualizarLista();
-      } catch {
-        Alert.alert("Erro", "Não foi possível pular a entrega.");
-      }
-    },
-    [paradas, onAtualizarLista],
+    [paradas, listaLocal, onAtualizarLista, onReordenarLocal],
   );
 
   // 4. Excluir Parada
   const handleExcluir = useCallback(
     (item: Parada) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
       Alert.alert("Excluir parada", `Deseja remover "${item.rua}" da rota?`, [
         { text: "Cancelar", style: "cancel" },
         {
           text: "Excluir",
           style: "destructive",
           onPress: async () => {
+            const novaLista = listaLocal.filter((p) => p.id !== item.id);
+            setListaLocal(novaLista);
+            onReordenarLocal?.(novaLista);
+
             try {
               await api.delete(`/entregas/${item.id}`);
               onAtualizarLista();
             } catch {
+              setListaLocal(paradas);
+              onReordenarLocal?.(paradas);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               Alert.alert("Erro", "Não foi possível excluir a entrega.");
             }
           },
         },
       ]);
     },
-    [onAtualizarLista],
+    [paradas, listaLocal, onAtualizarLista, onReordenarLocal],
   );
 
   // 5. Editar Endereço
@@ -112,8 +133,10 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({ paradas, onA
     try {
       await api.put(`/entregas/${paradaEmEdicao.id}`, { rua: textoEditado.trim() });
       setParadaEmEdicao(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onAtualizarLista();
     } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert("Erro", "Não foi possível atualizar o endereço.");
     } finally {
       setCarregandoAcao(false);
@@ -123,10 +146,10 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({ paradas, onA
   return (
     <View className="flex-1 relative">
       <FlatList
-        data={paradas}
+        data={listaLocal}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 80 }} // Espaço extra para o botão flutuante não cobrir o último item
+        contentContainerStyle={{ paddingBottom: 80 }}
         ListEmptyComponent={
           <View className="items-center justify-center py-8">
             <Feather name="map-pin" size={32} color="#94A3B8" />
@@ -159,29 +182,27 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({ paradas, onA
 
             {/* Ações Inteligentes com Legendas Claras */}
             <View className="flex-row items-center gap-1">
-              {/* Botão Priorizar (Mover para 1º) */}
+              {/* Mover para Cima (▲) */}
               {index > 0 && (
                 <TouchableOpacity
-                  onPress={() => handlePriorizar(index)}
-                  className="bg-[#1e2e48] px-2 py-1 rounded-md border border-amber-500/40 flex-row items-center gap-0.5"
+                  onPress={() => handleMoverPosicao(index, "cima")}
+                  className="bg-[#1e2e48] p-1.5 rounded-md border border-[#22334f]"
                 >
-                  <Ionicons name="arrow-up" size={10} color="#F59E0B" />
-                  <Text className="text-amber-400 text-[9px] font-bold">1º</Text>
+                  <Ionicons name="chevron-up" size={13} color="#94A3B8" />
                 </TouchableOpacity>
               )}
 
-              {/* Botão Pular (Mover para Fim) */}
-              {paradas.length > 1 && (
+              {/* Mover para Baixo (▼) */}
+              {index < listaLocal.length - 1 && (
                 <TouchableOpacity
-                  onPress={() => handlePular(index)}
-                  className="bg-[#1e2e48] px-2 py-1 rounded-md border border-[#22334f] flex-row items-center gap-0.5"
+                  onPress={() => handleMoverPosicao(index, "baixo")}
+                  className="bg-[#1e2e48] p-1.5 rounded-md border border-[#22334f]"
                 >
-                  <Ionicons name="play-skip-forward" size={10} color="#94A3B8" />
-                  <Text className="text-[#94a3b8] text-[9px] font-medium">Pular</Text>
+                  <Ionicons name="chevron-down" size={13} color="#94A3B8" />
                 </TouchableOpacity>
               )}
 
-              {/* Botão Editar */}
+              {/* Editar */}
               <TouchableOpacity
                 onPress={() => {
                   setParadaEmEdicao(item);
@@ -192,7 +213,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({ paradas, onA
                 <Ionicons name="pencil-outline" size={13} color="#38BDF8" />
               </TouchableOpacity>
 
-              {/* Botão Excluir */}
+              {/* Excluir */}
               <TouchableOpacity onPress={() => handleExcluir(item)} className="p-1.5 bg-[#1e2e48] rounded-md border border-[#22334f]">
                 <Ionicons name="trash-outline" size={13} color="#EF4444" />
               </TouchableOpacity>

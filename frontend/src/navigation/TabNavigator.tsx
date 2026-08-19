@@ -6,6 +6,7 @@ import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import HomeScreen from "../screens/HomeScreen";
 import NovaEntregaScreen from "../screens/NovaEntregaScreen";
+import HistoricoScreen from "../screens/HistoricoScreen";
 
 export type TabParamList = {
   Inicio: undefined;
@@ -44,7 +45,7 @@ const TABS: TabConfig[] = [
   {
     name: "Historico",
     label: "Histórico",
-    component: HomeScreen,
+    component: HistoricoScreen,
     icon: ({ color, focused }) => <Ionicons name={focused ? "time" : "time-outline"} size={20} color={color} />,
   },
   {

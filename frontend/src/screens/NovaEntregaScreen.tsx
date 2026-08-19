@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
+import * as Location from "expo-location";
 
 // ============================================================================
 // Tipos / Constantes
@@ -164,6 +165,7 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
   const [adicionarARotaAtual, setAdicionarARotaAtual] = useState(true);
   const [appMapaSelecionado, setAppMapaSelecionado] = useAppMapaPadrao();
   const [carregando, setCarregando] = useState(false);
+  const [cidadeDetectadaViaGPS, setCidadeDetectadaViaGPS] = useState(false);
 
   const mountedRef = useRef(true);
 
@@ -185,6 +187,30 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
     setTelefone("");
     setTelefoneErro("");
     setTelefoneTouched(false);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === "granted") {
+          const location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+
+          const [endereco] = await Location.reverseGeocodeAsync({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          });
+
+          if (endereco?.city || endereco?.subregion) {
+            const nomeCidade = endereco.city || endereco.subregion || "";
+            setCidade(nomeCidade);
+            setCidadeDetectadaViaGPS(true);
+          }
+        }
+      } catch {}
+    })();
   }, []);
 
   // ----------------------------------------------------------------
@@ -238,38 +264,25 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
       Alert.alert("Atenção", "Informe o número da residência.");
       return;
     }
-    if (!cidade.trim()) {
-      Alert.alert("Atenção", "Informe a cidade.");
-      return;
-    }
     if (!nomeDestinatario.trim()) {
       Alert.alert("Atenção", "Informe o nome do destinatário.");
       return;
     }
 
-    // Validação final do telefone (se preenchido)
-    if (telefone.trim().length > 0) {
-      const erroTel = validarCelular(telefone);
-      if (erroTel) {
-        setTelefoneErro(erroTel);
-        setTelefoneTouched(true);
-        Alert.alert("Atenção", erroTel);
-        return;
-      }
-    }
+    // Captura localização atual do GPS (se disponível) para servir de contexto automático de cidade
+    let latUsuario: number | undefined;
+    let lonUsuario: number | undefined;
 
-    // Validação final do CEP (se preenchido)
-    if (cep.trim().length > 0) {
-      const erroCep = validarCep(cep);
-      if (erroCep) {
-        setCepErro(erroCep);
-        setCepTouched(true);
-        Alert.alert("Atenção", erroCep);
-        return;
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        latUsuario = loc.coords.latitude;
+        lonUsuario = loc.coords.longitude;
       }
-    }
+    } catch {}
 
-    const enderecoFormatadoExato = `${rua.trim()}, ${numero.trim()}${bairro.trim() ? ` - ${bairro.trim()}` : ""}, ${cidade.trim()}${cep.trim() ? ` - CEP: ${cep.trim()}` : ""}`;
+    const enderecoFormatadoExato = `${rua.trim()}, ${numero.trim()}${bairro.trim() ? ` - ${bairro.trim()}` : ""}${cidade.trim() ? `, ${cidade.trim()}` : ""}${cep.trim() ? ` - CEP: ${cep.trim()}` : ""}`;
 
     setCarregando(true);
     try {
@@ -285,6 +298,8 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
         telefone: telefone.replace(/\D/g, ""),
         adicionarARotaAtual,
         appMapa: appMapaSelecionado,
+        latUsuario, // <--- Enviado automaticamente ao backend
+        lonUsuario, // <--- Enviado automaticamente ao backend
       });
 
       await AsyncStorage.setItem(CHAVE_APP_PADRAO, appMapaSelecionado);
@@ -318,10 +333,6 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
     limparFormulario,
   ]);
 
-  // Callbacks memoizados para os botões de mapa
-  const handleGoogle = useCallback(() => setAppMapaSelecionado("google"), []);
-  const handleWaze = useCallback(() => setAppMapaSelecionado("waze"), []);
-
   // ----------------------------------------------------------------
   // Renderização
   // ----------------------------------------------------------------
@@ -353,13 +364,29 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
         </View>
 
         <View className="flex-row gap-3">
-          <FormInput
-            label="Cidade *"
-            placeholder="Ex: Santo Ângelo"
-            value={cidade}
-            onChangeText={setCidade}
-            classNameCustom="flex-1 mb-4"
-          />
+          <View className="flex-1 mb-4">
+            <View className="flex-row items-center justify-between mb-1.5">
+              <Text className="text-[#94a3b8] text-xs font-medium">Cidade *</Text>
+
+              {cidadeDetectadaViaGPS && (
+                <View className="flex-row items-center bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                  <Ionicons name="location-sharp" size={12} color="#22c55e" style={{ marginRight: 4 }} />
+                  <Text className="text-emerald-400 text-[10px] font-semibold">Detectado via GPS</Text>
+                </View>
+              )}
+            </View>
+
+            <TextInput
+              placeholderTextColor="#64748b"
+              className="bg-[#152033] border border-[#22334F] rounded-xl px-3.5 py-3 text-sm text-white"
+              placeholder="Ex: Santo Ângelo"
+              value={cidade}
+              onChangeText={(texto) => {
+                setCidade(texto);
+                setCidadeDetectadaViaGPS(false);
+              }}
+            />
+          </View>
           <FormInput
             label="CEP (opcional)"
             placeholder="98800-000"
