@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "dev": "tsx watch src/server.ts"
   },
   "keywords": [],
@@ -24,6 +25,7 @@
     "@types/node": "^26.2.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.7",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
   }
 }

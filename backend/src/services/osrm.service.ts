@@ -13,13 +13,17 @@ export async function otimizarSequencia(pontos: PontoRota[]) {
   try {
     const coordenadasString = pontos.map((ponto) => `${ponto.lon},${ponto.lat}`).join(";");
 
-    const url = `http://router.project-osrm.org/trip/v1/driving/${coordenadasString}`;
+    const url = `https://router.project-osrm.org/trip/v1/driving/${coordenadasString}`;
 
     const response = await axios.get(url, {
       params: {
         source: "first",
         roundtrip: false,
       },
+      headers: {
+        "User-Agent": "DeliveryFastApp/1.0",
+      },
+      timeout: 5000,
     });
 
     if (response.data.code !== "Ok") {
@@ -28,15 +32,18 @@ export async function otimizarSequencia(pontos: PontoRota[]) {
 
     const waypoints = response.data.waypoints;
 
-    const pontosOrdenados = waypoints.map((wp: any, index: number) => {
-      const indexOriginal = wp.waypoint_index;
-      return {
+    const pontosOrdenados = waypoints
+      .map((wp: any, indexOriginal: number) => ({
+        ordemCalculada: wp.waypoint_index,
+        pontoOriginal: pontos[indexOriginal],
+      }))
+      .sort((a: any, b: any) => a.ordemCalculada - b.ordemCalculada)
+      .map((item: any, index: number) => ({
         ordem: index + 1,
-        endereco: pontos[indexOriginal]?.enderecoOriginal,
-        lat: pontos[indexOriginal]?.lat,
-        lon: pontos[indexOriginal]?.lon,
-      };
-    });
+        endereco: item.pontoOriginal?.enderecoOriginal,
+        lat: item.pontoOriginal?.lat,
+        lon: item.pontoOriginal?.lon,
+      }));
 
     return pontosOrdenados;
   } catch (error) {

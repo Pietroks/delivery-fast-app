@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { supabase } from "../services/supabase";
 import axios from "axios";
-import { success } from "zod";
+import { otimizarSequencia } from "../services/osrm.service";
 
 // ============================================================================
 // Tipos
@@ -35,8 +35,6 @@ interface EntregaDB {
   status?: string;
 }
 
-type EntregaComCoordsValidas = EntregaDB & { lat: number; lon: number };
-
 // ============================================================================
 // Funções auxiliares
 // ============================================================================
@@ -66,59 +64,29 @@ function formatarParadas(entregas: EntregaDB[]): ParadaFormatada[] {
   }));
 }
 
-/**
- * Geocodifica dinamicamente identificando a cidade pelo GPS do usuário
- * ou pela cidade passada no cadastro.
- */
-async function geocodificarEndereco(
-  enderecoRua: string,
-  cidadeInformada?: string,
-  latGPS?: number,
-  lonGPS?: number,
-): Promise<{ lat: number; lon: number }> {
+async function geocodificarNoCadastro(enderecoCompleto: string): Promise<{ lat: number; lon: number }> {
   try {
-    let cidadeContexto = cidadeInformada;
+    const cepMatch = enderecoCompleto.match(/CEP:?\s*(\d{5}-?\d{3}|\d{8})/i);
+    let termoBusca = "";
 
-    // 1. Se recebemos coordenadas válidas do GPS, descobrimos a cidade dinamicamente via Reverse Geocoding
-    if (!cidadeContexto && latGPS && lonGPS && latGPS !== 0 && lonGPS !== 0) {
-      try {
-        const { data: revData } = await axios.get("https://nominatim.openstreetmap.org/reverse", {
-          params: { lat: latGPS, lon: lonGPS, format: "json" },
-          headers: { "User-Agent": "DeliveryFastApp/1.0" },
-          timeout: 2500,
-        });
-
-        const addr = revData?.address;
-        cidadeContexto = addr?.city || addr?.town || addr?.municipality || addr?.village;
-      } catch {}
+    if (cepMatch && cepMatch[1]) {
+      const cepLimpo = cepMatch[1].replace(/\D/g, "");
+      termoBusca = `${cepLimpo}, Brasil`;
+    } else {
+      const enderecoSimplificado = enderecoCompleto.replace(/,\s*\d+/g, "").trim();
+      termoBusca = `${enderecoSimplificado}, Brasil`;
     }
 
-    // 2. Monta a busca dinâmica com Rua + Cidade Contexto + Brasil
-    const termos = [enderecoRua, cidadeContexto, "Brasil"].filter(Boolean).join(", ");
-
-    const paramsBase = { format: "json", limit: 1, countrycodes: "br" };
-
-    let { data } = await axios.get("https://nominatim.openstreetmap.org/search", {
-      params: { ...paramsBase, q: termos },
+    const { data } = await axios.get("https://nominatim.openstreetmap.org/search", {
+      params: {
+        q: termoBusca,
+        format: "json",
+        limit: 1,
+        countrycodes: "br",
+      },
       headers: { "User-Agent": "DeliveryFastApp/1.0" },
       timeout: 3000,
     });
-
-    // 3. Fallback: Se não achou com o número/complemento exato, simplifica a rua
-    if (!data || data.length === 0) {
-      const ruaSimplificada = enderecoRua
-        .replace(/,\s*Nº?\s*\d+.*$/i, "")
-        .replace(/,\s*\d+.*$/, "")
-        .trim();
-      const termosSimplificados = [ruaSimplificada, cidadeContexto, "Brasil"].filter(Boolean).join(", ");
-
-      const res = await axios.get("https://nominatim.openstreetmap.org/search", {
-        params: { ...paramsBase, q: termosSimplificados },
-        headers: { "User-Agent": "DeliveryFastApp/1.0" },
-        timeout: 3000,
-      });
-      data = res.data;
-    }
 
     if (data && data.length > 0) {
       return {
@@ -144,8 +112,7 @@ async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply)
     const agora = new Date();
     const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
 
-    // Captura cidade enviada ou coordenadas do GPS enviadas no cadastro
-    const coords = await geocodificarEndereco(enderecoFormatado, body.cidade, body.latUsuario, body.lonUsuario);
+    const coords = await geocodificarNoCadastro(enderecoFormatado);
 
     const { data, error } = await supabase
       .from("entregas")
@@ -234,92 +201,36 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
 
     const entregasTipadas = entregas as EntregaDB[];
 
-    // Tenta re-geocodificar qualquer entrega que esteja com lat/lon zeradas
-    const entregasComCoords = await Promise.all(
-      entregasTipadas.map(async (item) => {
-        if (item.lat !== undefined && item.lon !== undefined && item.lat !== 0 && item.lon !== 0) {
-          return item;
-        }
-        const coords = await geocodificarEndereco(item.rua, item.bairro, latUsuario, lonUsuario);
-        if (coords.lat !== 0 && coords.lon !== 0) {
-          await supabase.from("entregas").update({ lat: coords.lat, lon: coords.lon }).eq("id", item.id);
-        }
-        return { ...item, lat: coords.lat, lon: coords.lon };
-      }),
-    );
+    // Otimização ultra-rápida lendo lat/lon direto do banco sem chamadas externas ao Nominatim
+    const pontosEntrada = [];
 
-    const pontosValidos = entregasComCoords.filter(
-      (e): e is EntregaComCoordsValidas => e.lat !== undefined && e.lon !== undefined && e.lat !== 0 && e.lon !== 0,
-    );
-
-    if (pontosValidos.length === 0) {
-      return reply.status(200).send({
-        sucesso: true,
-        mensagem: "Não foi possível encontrar as coordenadas dos endereços.",
-      });
+    if (latUsuario && lonUsuario && latUsuario !== 0 && lonUsuario !== 0) {
+      pontosEntrada.push({ lat: latUsuario, lon: lonUsuario, enderecoOriginal: "Sua Localização (GPS)" });
     }
 
-    let coordsArray: string[] = [];
-    const temLocalizacaoUsuario = Boolean(latUsuario && lonUsuario && latUsuario !== 0 && lonUsuario !== 0);
-
-    if (temLocalizacaoUsuario) {
-      coordsArray.push(`${lonUsuario},${latUsuario}`);
-    }
-
-    pontosValidos.forEach((e) => coordsArray.push(`${e.lon},${e.lat}`));
-
-    if (coordsArray.length < 2) {
-      return reply.status(200).send({
-        sucesso: true,
-        mensagem: "Rota pronta com 1 ponto.",
+    entregasTipadas.forEach((e) => {
+      pontosEntrada.push({
+        lat: e.lat ?? 0,
+        lon: e.lon ?? 0,
+        enderecoOriginal: e.rua,
       });
-    }
+    });
 
-    const coordsString = coordsArray.join(";");
-    const osrmUrl = `https://router.project-osrm.org/trip/v1/driving/${coordsString}?source=first&destination=any&roundtrip=false`;
+    const pontosOtimizados = await otimizarSequencia(pontosEntrada);
 
-    const { data: osrmData } = await axios.get(osrmUrl, { timeout: 5000 });
-
-    if (osrmData && osrmData.code === "Ok" && osrmData.waypoints) {
-      const waypoints = osrmData.waypoints as Array<{ waypoint_index: number }>;
-
-      const tripInfo = osrmData.trips?.[0];
-      const distanciaRealMetros = tripInfo?.distance ?? 0;
-      const tempoRealSegundos = tripInfo?.duration ?? 0;
-
-      const entregasComOrdem = pontosValidos.map((entrega, indexOriginal) => {
-        const indexOsrm = temLocalizacaoUsuario ? indexOriginal + 1 : indexOriginal;
-        const ordemCalculada = waypoints[indexOsrm]?.waypoint_index ?? indexOriginal;
-
-        return { entrega, ordemCalculada };
-      });
-
-      entregasComOrdem.sort((a, b) => a.ordemCalculada - b.ordemCalculada);
-
-      for (let i = 0; i < entregasComOrdem.length; i++) {
-        const elemento = entregasComOrdem[i];
-        if (elemento && elemento.entrega) {
-          await supabase
-            .from("entregas")
-            .update({
-              ordem: i + 1,
-              lat: elemento.entrega.lat,
-              lon: elemento.entrega.lon,
-            })
-            .eq("id", elemento.entrega.id);
-        }
+    let novaOrdem = 1;
+    for (const item of pontosOtimizados) {
+      const entregaCorrespondente = entregasTipadas.find((e) => e.rua === item.endereco);
+      if (entregaCorrespondente) {
+        await supabase.from("entregas").update({ ordem: novaOrdem }).eq("id", entregaCorrespondente.id);
+        novaOrdem++;
       }
-
-      const resumoReal = calcularResumoReal(pontosValidos.length, distanciaRealMetros, tempoRealSegundos);
-
-      return reply.status(200).send({
-        sucesso: true,
-        mensagem: "Rota otimizada com sucesso!",
-        resumo: resumoReal,
-      });
     }
 
-    return reply.status(200).send({ sucesso: true, mensagem: "Não foi possível calcular com a API do OSRM." });
+    return reply.status(200).send({
+      sucesso: true,
+      mensagem: "Rota otimizada com sucesso!",
+    });
   } catch (err: unknown) {
     const mensagem = err instanceof Error ? err.message : "Falha ao otimizar a rota.";
     return reply.status(200).send({ sucesso: false, erro: mensagem });
