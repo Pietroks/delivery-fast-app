@@ -15,6 +15,7 @@ const mockOr = vi.fn();
 const mockEq = vi.fn();
 const mockGte = vi.fn();
 const mockOrder = vi.fn();
+const mockIn = vi.fn(); // <-- Mock adicionado para a busca de múltiplos IDs
 
 const mockQueryBuilder = {
   select: mockSelect,
@@ -26,6 +27,7 @@ const mockQueryBuilder = {
   gte: mockGte,
   order: mockOrder,
   single: mockSingle,
+  in: mockIn,
 };
 
 mockSelect.mockReturnValue(mockQueryBuilder);
@@ -36,6 +38,7 @@ mockOr.mockReturnValue(mockQueryBuilder);
 mockEq.mockReturnValue(mockQueryBuilder);
 mockGte.mockReturnValue(mockQueryBuilder);
 mockOrder.mockReturnValue(mockQueryBuilder);
+mockIn.mockReturnValue(mockQueryBuilder);
 
 vi.mock("../../services/supabase", () => ({
   supabase: {
@@ -57,6 +60,7 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
     mockEq.mockReturnValue(mockQueryBuilder);
     mockGte.mockReturnValue(mockQueryBuilder);
     mockOrder.mockReturnValue(mockQueryBuilder);
+    mockIn.mockReturnValue(mockQueryBuilder);
 
     app = Fastify();
     await app.register(rotasRoutes);
@@ -249,18 +253,20 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       expect(body.resumo.totalConcluidas).toBe(1);
     });
 
-    it("PUT /api/v1/rotas/concluir-todas - Deve marcar todas as entregas como concluídas", async () => {
-      mockOr.mockResolvedValueOnce({ error: null });
+    it("PUT /api/v1/rotas/concluir-todas - Deve concluir as entregas do lote selecionado pelo array de IDs", async () => {
+      // Mock para a query '.in("id", [...])'
+      mockIn.mockResolvedValueOnce({ error: null });
 
       const response = await app.inject({
         method: "PUT",
         url: "/api/v1/rotas/concluir-todas",
+        payload: { idsConcluidos: ["1", "2"] },
       });
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
       expect(body.sucesso).toBe(true);
-      expect(body.mensagem).toBe("Todas as entregas foram concluídas!");
+      expect(body.mensagem).toBe("Entregas finalizadas com sucesso!");
     });
   });
 

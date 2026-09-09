@@ -49,6 +49,7 @@ interface EntregaDB {
 function calcularResumoReal(totalEntregas: number, distanciaMetros: number = 0, duracaoSegundos: number = 0): ResumoRota {
   const distanciaKm = distanciaMetros === 0 ? 0 : Number((distanciaMetros / 1000).toFixed(1));
   const tempoEstimadoMin = Math.round(duracaoSegundos / 60);
+
   const economiaEstimadaRs = Number((distanciaKm * 0.45).toFixed(2));
 
   return {
@@ -73,35 +74,37 @@ function formatarParadas(entregas: EntregaDB[]): ParadaFormatada[] {
   }));
 }
 
-async function geocodificarNoCadastro(enderecoCompleto: string): Promise<{ lat: number; lon: number }> {
+async function geocodificarNoCadastro(
+  rua: string,
+  numero?: string,
+  bairro?: string,
+  cidade?: string,
+): Promise<{ lat: number; lon: number }> {
   try {
-    const cepMatch = enderecoCompleto.match(/CEP:?\s*(\d{5}-?\d{3}|\d{8})/i);
-    let termoBusca = "";
+    // 1ª tentativa: Endereço completo com número e bairro
+    const buscaCompleta = `${rua}${numero ? `, ${numero}` : ""}${bairro ? ` - ${bairro}` : ""}${cidade ? `, ${cidade}` : ""}, Brasil`;
 
-    if (cepMatch && cepMatch[1]) {
-      const cepLimpo = cepMatch[1].replace(/\D/g, "");
-      termoBusca = `${cepLimpo}, Brasil`;
-    } else {
-      const enderecoSimplificado = enderecoCompleto.replace(/,\s*\d+/g, "").trim();
-      termoBusca = `${enderecoSimplificado}, Brasil`;
-    }
-
-    const { data } = await axios.get("https://nominatim.openstreetmap.org/search", {
-      params: {
-        q: termoBusca,
-        format: "json",
-        limit: 1,
-        countrycodes: "br",
-      },
+    let { data } = await axios.get("https://nominatim.openstreetmap.org/search", {
+      params: { q: buscaCompleta, format: "json", limit: 1, countrycodes: "br" },
       headers: { "User-Agent": "DeliveryFastApp/1.0" },
-      timeout: 3000,
+      timeout: 3500,
     });
 
     if (data && data.length > 0) {
-      return {
-        lat: parseFloat(data[0].lat),
-        lon: parseFloat(data[0].lon),
-      };
+      return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+    }
+
+    // 2ª tentativa (fallback): Rua + Cidade
+    if (cidade) {
+      const buscaSimples = `${rua}, ${cidade}, Brasil`;
+      const res = await axios.get("https://nominatim.openstreetmap.org/search", {
+        params: { q: buscaSimples, format: "json", limit: 1, countrycodes: "br" },
+        headers: { "User-Agent": "DeliveryFastApp/1.0" },
+        timeout: 3500,
+      });
+      if (res.data?.[0]) {
+        return { lat: parseFloat(res.data[0].lat), lon: parseFloat(res.data[0].lon) };
+      }
     }
   } catch {}
   return { lat: 0, lon: 0 };
@@ -132,7 +135,7 @@ async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply)
     const agora = new Date();
     const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
 
-    const coords = await geocodificarNoCadastro(enderecoFormatado);
+    const coords = await geocodificarNoCadastro(body.rua, body.numero, body.bairro, body.cidade);
 
     const { data, error } = await supabase
       .from("entregas")
@@ -165,6 +168,8 @@ async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply)
 }
 
 async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyReply) {
+  const { lat, lon } = (request.query as { lat?: string; lon?: string }) || {};
+
   const { data: entregas, error } = await supabase
     .from("entregas")
     .select("*")
@@ -181,17 +186,31 @@ async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyRep
   let distanciaMetros = 0;
   let duracaoSegundos = 0;
 
-  const coordsValidas = paradasFormatadas.filter((p) => p.lat !== 0 && p.lon !== 0).map((p) => `${p.lon},${p.lat}`);
+  // Monta os pontos válidos das entregas
+  const coordsPontos = paradasFormatadas
+    .filter((p) => p.lat !== 0 && p.lon !== 0 && !isNaN(p.lat) && !isNaN(p.lon))
+    .map((p) => `${p.lon},${p.lat}`);
 
-  if (coordsValidas.length >= 2) {
+  // Se o app enviou a posição do entregador (GPS), insere como ponto de partida
+  if (lat && lon && Number(lat) !== 0 && Number(lon) !== 0) {
+    coordsPontos.unshift(`${lon},${lat}`);
+  }
+
+  if (coordsPontos.length >= 2) {
     try {
-      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsValidas.join(";")}`;
-      const response = await axios.get(osrmUrl, { timeout: 3000 });
+      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsPontos.join(";")}`;
+      const response = await axios.get(osrmUrl, {
+        params: { overview: "false" },
+        headers: { "User-Agent": "DeliveryFastApp/1.0 (deliveryfast@contato.local)" },
+        timeout: 5000,
+      });
+
       if (response?.data?.routes?.[0]) {
         distanciaMetros = response.data.routes[0].distance;
         duracaoSegundos = response.data.routes[0].duration;
       }
-    } catch {
+    } catch (err: any) {
+      request.log.warn({ erroOsrm: err?.message }, "OSRM falhou ao calcular rota no GET /rotas/atual. Usando fallback 0.");
       distanciaMetros = 0;
       duracaoSegundos = 0;
     }
@@ -301,14 +320,24 @@ async function historicoGeralHandler(request: FastifyRequest, reply: FastifyRepl
 
 async function concluirTodasEntregasHandler(request: FastifyRequest, reply: FastifyReply) {
   try {
-    const { error } = await supabase.from("entregas").update({ status: "entregue" }).or("status.neq.entregue,status.is.null");
+    const { idsConcluidos } = (request.body as { idsConcluidos?: string[] }) || {};
+
+    let query = supabase.from("entregas").update({ status: "entregue", updated_at: new Date().toISOString() });
+
+    if (idsConcluidos && Array.isArray(idsConcluidos) && idsConcluidos.length > 0) {
+      query = query.in("id", idsConcluidos);
+    } else {
+      query = query.or("status.neq.entregue,status.is.null");
+    }
+
+    const { error } = await query;
 
     if (error) {
-      request.log.error({ error }, "Erro ao concluir todas as entregas.");
+      request.log.error({ error }, "Erro ao concluir entregas.");
       return reply.status(500).send({ sucesso: false, erro: "Erro ao concluir entregas." });
     }
 
-    return reply.status(200).send({ sucesso: true, mensagem: "Todas as entregas foram concluídas!" });
+    return reply.status(200).send({ sucesso: true, mensagem: "Entregas finalizadas com sucesso!" });
   } catch (error) {
     return reply.status(500).send({ sucesso: false, mensagem: "Erro ao processar requisição." });
   }

@@ -9,6 +9,7 @@ import { api } from "../services/api";
 import { GerenciadorRotas } from "../components/GerenciadorRotas";
 import { abrirRotaGoogleMaps } from "../utils/navigation";
 import { ResumoRotaCard, ResumoRotaData } from "../components/ResumoRotaCard";
+import { FinalizarRotaModal } from "../components/FinalizarRotaModal";
 import { carregarRotasLocalmente, salvarRotasLocalmente } from "../services/storage";
 
 export interface Parada {
@@ -28,18 +29,43 @@ export default function HomeScreen() {
   const [resumo, setResumo] = useState<ResumoRotaData | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [otimizando, setOtimizando] = useState(false);
-  const [concluirGeral, setConcluirGeral] = useState(false);
+  const [modalFinalizarAberto, setModalFinalizarAberto] = useState(false);
+  const [finalizando, setFinalizando] = useState(false);
+
+  const obterCoordenadasGPS = async (): Promise<{ lat?: number; lon?: number }> => {
+    try {
+      const servicoAtivo = await Location.hasServicesEnabledAsync();
+      if (!servicoAtivo) return {};
+
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== "granted") return {};
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      return {
+        lat: location.coords.latitude,
+        lon: location.coords.longitude,
+      };
+    } catch {
+      return {};
+    }
+  };
 
   const carregarEntregas = useCallback(async () => {
     setCarregando(true);
     try {
-      const response = await api.get("/rotas/atual");
+      const gps = await obterCoordenadasGPS();
+      const config = gps.lat && gps.lon ? { params: { lat: gps.lat, lon: gps.lon } } : undefined;
+      const response = config ? await api.get("/rotas/atual", config) : await api.get("/rotas/atual");
+
       if (response.data) {
         const paradasServidor = response.data.paradas || [];
         const resumoServidor = response.data.resumo || null;
 
-        setRotas(response.data.paradas || []);
-        setResumo(response.data.resumo || null);
+        setRotas(paradasServidor);
+        setResumo(resumoServidor);
 
         await salvarRotasLocalmente(paradasServidor, resumoServidor);
       }
@@ -48,7 +74,7 @@ export default function HomeScreen() {
       setRotas(cacheLocal.paradas);
       setResumo(cacheLocal.resumo);
       if (cacheLocal.paradas.length > 0) {
-        Alert.alert("Modo offline", "Não foi possível conectar ao servidor. Exibindo a rota salva localmente no dispositivo.");
+        Alert.alert("Modo offline", "Não foi possível conectar ao servidor. Exibindo a rota salva localmente.");
       }
     } finally {
       setCarregando(false);
@@ -63,23 +89,18 @@ export default function HomeScreen() {
 
     setOtimizando(true);
     try {
-      // 1. Verifica se os serviços de GPS do celular estão ativos
       const servicoAtivo = await Location.hasServicesEnabledAsync();
       if (!servicoAtivo) {
-        Alert.alert("GPS Desativado", "Por favor, ative a localização/GPS do seu celular para calcular a rota.");
+        Alert.alert("GPS Desativado", "Por favor, ative a localização do celular para otimizar o trajeto.");
         setOtimizando(false);
         return;
       }
 
-      // 2. Solicita permissão explícita de localização
       const { status } = await Location.requestForegroundPermissionsAsync();
       let latUsuario: number | undefined;
       let lonUsuario: number | undefined;
 
-      if (status !== "granted") {
-        Alert.alert("Permissão negada", "O app precisa da sua localização para traçar a rota a partir de onde você está.");
-      } else {
-        // 3. Captura posição do GPS
+      if (status === "granted") {
         const location = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
         });
@@ -87,7 +108,6 @@ export default function HomeScreen() {
         lonUsuario = location.coords.longitude;
       }
 
-      // 4. Envia para o backend (Localização do Usuário + Entregas)
       const response = await api.post("/rotas/otimizar", {
         latUsuario,
         lonUsuario,
@@ -105,7 +125,6 @@ export default function HomeScreen() {
 
   const handleIniciarRota = useCallback(async () => {
     if (rotas.length === 0) return;
-
     try {
       await abrirRotaGoogleMaps(rotas);
     } catch {
@@ -113,37 +132,29 @@ export default function HomeScreen() {
     }
   }, [rotas]);
 
-  const handleConcluirTodas = useCallback(() => {
-    if (rotas.length === 0) return;
+  const confirmarFinalizacaoLote = useCallback(
+    async (idsConcluidos: string[]) => {
+      if (idsConcluidos.length === 0) {
+        Alert.alert("Atenção", "Nenhuma entrega marcada para finalizar.");
+        return;
+      }
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-
-    Alert.alert(
-      "Finalizar todas as entregas?",
-      `Deseja marcar todas as ${rotas.length} entregas da rota atual como concluídas? Elas serão movidas para o seu histórico.`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Sim, finalizar tudo",
-          style: "default",
-          onPress: async () => {
-            setConcluirGeral(true);
-            try {
-              await api.put("/rotas/concluir-todas");
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              await carregarEntregas();
-              Alert.alert("Sucesso", "Todas as entregas foram concluídas!");
-            } catch {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-              Alert.alert("Erro", "Não foi possível finalizar as entregas.");
-            } finally {
-              setConcluirGeral(false);
-            }
-          },
-        },
-      ],
-    );
-  }, [rotas.length, carregarEntregas]);
+      setFinalizando(true);
+      try {
+        await api.put("/rotas/concluir-todas", { idsConcluidos });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setModalFinalizarAberto(false);
+        await carregarEntregas();
+        Alert.alert("Sucesso", `${idsConcluidos.length} entrega(s) finalizada(s)!`);
+      } catch {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Erro", "Não foi possível finalizar as entregas.");
+      } finally {
+        setFinalizando(false);
+      }
+    },
+    [carregarEntregas],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -199,13 +210,14 @@ export default function HomeScreen() {
           <GerenciadorRotas paradas={rotas} onAtualizarLista={carregarEntregas} onReordenarLocal={setRotas} />
         )}
 
+        {/* Botões de Ação Inferiores */}
         <View className="flex-row gap-2 mt-2">
           <TouchableOpacity
             className={`flex-1 py-3.5 rounded-xl flex-row justify-center items-center mt-2 ${
               temRotas ? "bg-[#22c55e] active:bg-emerald-600" : "bg-[#1e2e48] opacity-50"
             }`}
             onPress={temRotas ? handleIniciarRota : undefined}
-            disabled={!temRotas || concluirGeral}
+            disabled={!temRotas || finalizando}
             accessibilityLabel="Iniciar rota"
           >
             <Ionicons name="play" size={16} color={temRotas ? "#000000" : "#64748b"} style={{ marginRight: 6 }} />
@@ -215,21 +227,27 @@ export default function HomeScreen() {
           {temRotas && (
             <TouchableOpacity
               className="bg-[#152033] border border-emerald-500/50 px-4 py-3.5 rounded-xl flex-row justify-center items-center active:bg-emerald-950"
-              onPress={handleConcluirTodas}
-              disabled={concluirGeral}
+              onPress={() => {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                setModalFinalizarAberto(true);
+              }}
+              disabled={finalizando}
             >
-              {concluirGeral ? (
-                <ActivityIndicator size="small" color="#22c55e" />
-              ) : (
-                <>
-                  <Ionicons name="checkmark-done-sharp" size={16} color="#22c55e" style={{ marginRight: 6 }} />
-                  <Text className="text-emerald-400 font-bold text-xs">Finalizar todas</Text>
-                </>
-              )}
+              <Ionicons name="checkmark-done-sharp" size={16} color="#22c55e" style={{ marginRight: 6 }} />
+              <Text className="text-emerald-400 font-bold text-xs">Finalizar Rota</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
+
+      {/* Modal de Fechamento com Seleção */}
+      <FinalizarRotaModal
+        visivel={modalFinalizarAberto}
+        paradas={rotas}
+        carregando={finalizando}
+        onFechar={() => setModalFinalizarAberto(false)}
+        onConfirmar={confirmarFinalizacaoLote}
+      />
     </SafeAreaView>
   );
 }

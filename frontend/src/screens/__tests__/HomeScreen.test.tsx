@@ -10,6 +10,8 @@ import { abrirRotaGoogleMaps } from "../../utils/navigation";
 jest.mock("expo-location", () => ({
   hasServicesEnabledAsync: jest.fn(() => Promise.resolve(true)),
   requestForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: "granted", granted: true })),
+  // Mock adicionado para a verificação silenciosa não cair no catch
+  getForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: "granted", granted: true })),
   getCurrentPositionAsync: jest.fn(() =>
     Promise.resolve({
       coords: {
@@ -21,6 +23,13 @@ jest.mock("expo-location", () => ({
   Accuracy: {
     Balanced: 3,
   },
+}));
+
+jest.mock("expo-haptics", () => ({
+  notificationAsync: jest.fn(),
+  impactAsync: jest.fn(),
+  NotificationFeedbackType: { Warning: "Warning", Success: "Success", Error: "Error" },
+  ImpactFeedbackStyle: { Light: "Light" },
 }));
 
 jest.mock("../../services/api", () => ({
@@ -78,7 +87,9 @@ describe("Tela Completa: HomeScreen", () => {
 
     await waitFor(
       () => {
-        expect(api.get).toHaveBeenCalledWith("/rotas/atual");
+        expect(api.get).toHaveBeenCalledWith("/rotas/atual", {
+          params: { lat: -28.298, lon: -54.263 },
+        });
         expect(getByText("Rua A, 100")).toBeTruthy();
         expect(getByText("Rua B, 200")).toBeTruthy();
       },
@@ -99,39 +110,87 @@ describe("Tela Completa: HomeScreen", () => {
     expect(abrirRotaGoogleMaps).toHaveBeenCalledWith(mockParadas);
   }, 10000);
 
-  test("Deve exibir confirmação e chamar a API para finalizar todas as entregas", async () => {
-    const spyAlert = jest.spyOn(Alert, "alert");
-    (api.put as jest.Mock).mockResolvedValue({ data: { sucesso: true } });
+  // ============================================================================
+  // CENÁRIOS DO MODAL DE FINALIZAÇÃO DE LOTE
+  // ============================================================================
 
+  test("Cenário 1: Deve enviar TODOS os IDs quando nenhuma entrega for desmarcada", async () => {
+    (api.put as jest.Mock).mockResolvedValue({ data: { sucesso: true } });
     const { getByText } = render(<HomeScreen />);
 
-    await waitFor(() => {
-      expect(getByText("Finalizar todas")).toBeTruthy();
+    await waitFor(() => expect(getByText("Finalizar Rota")).toBeTruthy());
+    fireEvent.press(getByText("Finalizar Rota"));
+
+    await waitFor(() => expect(getByText("Confirmar (2/2)")).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText("Confirmar (2/2)"));
     });
 
-    const botaoFinalizar = getByText("Finalizar todas");
-    fireEvent.press(botaoFinalizar);
-
-    expect(spyAlert).toHaveBeenCalledWith(
-      "Finalizar todas as entregas?",
-      expect.stringContaining("Deseja marcar todas as 2 entregas"),
-      expect.any(Array),
-    );
-
-    const botoesAlert = spyAlert.mock.calls[0][2];
-    const botaoConfirmar = botoesAlert?.find((b: any) => b.text === "Sim, finalizar tudo");
-
-    if (botaoConfirmar && typeof botaoConfirmar.onPress === "function") {
-      const onPressFn = botaoConfirmar.onPress;
-      await act(async () => {
-        await onPressFn();
-      });
-    }
-
     await waitFor(() => {
-      expect(api.put).toHaveBeenCalledWith("/rotas/concluir-todas");
+      expect(api.put).toHaveBeenCalledWith("/rotas/concluir-todas", {
+        idsConcluidos: ["1", "2"],
+      });
     });
   }, 10000);
+
+  test("Cenário 2: Deve enviar apenas os IDs restantes quando alguma entrega for desmarcada", async () => {
+    (api.put as jest.Mock).mockResolvedValue({ data: { sucesso: true } });
+    const { getByText, getAllByText } = render(<HomeScreen />);
+
+    await waitFor(() => expect(getByText("Finalizar Rota")).toBeTruthy());
+    fireEvent.press(getByText("Finalizar Rota"));
+
+    await waitFor(() => expect(getByText("Confirmar (2/2)")).toBeTruthy());
+
+    // Usa getAllByText para pegar os itens renderizados do Modal, que aparecem por último
+    const itensRuaA = getAllByText("Rua A, 100");
+    fireEvent.press(itensRuaA[itensRuaA.length - 1]);
+
+    // O contador do botão deve cair para 1/2
+    await waitFor(() => expect(getByText("Confirmar (1/2)")).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText("Confirmar (1/2)"));
+    });
+
+    await waitFor(() => {
+      // Como desmarcamos a Rua A (id 1), a API deve receber apenas o id 2
+      expect(api.put).toHaveBeenCalledWith("/rotas/concluir-todas", {
+        idsConcluidos: ["2"],
+      });
+    });
+  }, 10000);
+
+  test("Cenário 3: Deve barrar a requisição e exibir alerta se NENHUMA entrega estiver selecionada", async () => {
+    const spyAlert = jest.spyOn(Alert, "alert");
+    const { getByText, getAllByText } = render(<HomeScreen />);
+
+    await waitFor(() => expect(getByText("Finalizar Rota")).toBeTruthy());
+    fireEvent.press(getByText("Finalizar Rota"));
+
+    await waitFor(() => expect(getByText("Confirmar (2/2)")).toBeTruthy());
+
+    // Desmarca todas as entregas dentro do modal
+    const itensRuaA = getAllByText("Rua A, 100");
+    fireEvent.press(itensRuaA[itensRuaA.length - 1]);
+
+    const itensRuaB = getAllByText("Rua B, 200");
+    fireEvent.press(itensRuaB[itensRuaB.length - 1]);
+
+    // O contador deve mostrar 0/2
+    await waitFor(() => expect(getByText("Confirmar (0/2)")).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText("Confirmar (0/2)"));
+    });
+
+    // A requisição PUT não pode ter sido chamada e o alerta deve ser disparado
+    expect(api.put).not.toHaveBeenCalled();
+    expect(spyAlert).toHaveBeenCalledWith("Atenção", "Nenhuma entrega marcada para finalizar.");
+  }, 10000);
+
+  // ============================================================================
 
   test("Deve acionar a otimização de rota ao clicar no botão Otimizar Rota", async () => {
     (api.post as jest.Mock).mockResolvedValue({
