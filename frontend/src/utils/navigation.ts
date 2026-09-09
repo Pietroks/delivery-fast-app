@@ -15,6 +15,8 @@ function codificarEndereco(endereco?: string): string | null {
  * Abre o Google Maps traçando a rota partindo SEMPRE da localização atual do usuário (GPS)
  * cobrindo todas as entregas em sequência.
  */
+const LIMITE_MAXIMO_PARADAS = 10; // 9 waypoints + 1 destino final
+
 export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[]) {
   if (!paradas || paradas.length === 0) {
     Alert.alert("Atenção", "Nenhuma entrega cadastrada para iniciar a rota.");
@@ -32,12 +34,21 @@ export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[]) {
       return;
     }
 
-    // 2 ou mais entregas:
-    // Destino final = Último endereço da lista
-    const destinoFinal = codificarEndereco(paradas[paradas.length - 1].rua);
+    // Se houver mais entregas do que o limite suportado pelo Google Maps
+    let paradasParaNavegar = paradas;
+    if (paradas.length > LIMITE_MAXIMO_PARADAS) {
+      paradasParaNavegar = paradas.slice(0, LIMITE_MAXIMO_PARADAS);
+      Alert.alert(
+        "Lote de Entregas",
+        `O Google Maps suporta até 10 paradas por vez. Traçando a rota com as primeiras ${LIMITE_MAXIMO_PARADAS} entregas da sua lista otimizada.`,
+      );
+    }
 
-    // Waypoints = Todos os endereços do primeiro até o penúltimo
-    const waypoints = paradas
+    // Destino final = Último endereço deste lote
+    const destinoFinal = codificarEndereco(paradasParaNavegar[paradasParaNavegar.length - 1].rua);
+
+    // Waypoints = Todos os endereços do primeiro até o penúltimo deste lote
+    const waypoints = paradasParaNavegar
       .slice(0, -1)
       .map((p) => codificarEndereco(p.rua))
       .filter((p): p is string => p !== null)
@@ -48,7 +59,6 @@ export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[]) {
       return;
     }
 
-    // Omitindo 'origin', o Google Maps usa o GPS atual do dispositivo como Ponto de Partida!
     let urlRota = `https://www.google.com/maps/dir/?api=1&destination=${destinoFinal}&travelmode=driving`;
 
     if (waypoints.length > 0) {

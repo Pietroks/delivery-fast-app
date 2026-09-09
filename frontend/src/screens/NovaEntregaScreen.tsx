@@ -3,15 +3,8 @@ import { ActivityIndicator, Alert, ScrollView, StatusBar, Switch, Text, TextInpu
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
 import * as Location from "expo-location";
-
-// ============================================================================
-// Tipos / Constantes
-// ============================================================================
-export type AppMapaTipo = "google" | "waze";
-export const CHAVE_APP_PADRAO = "@delivery_fast:app_mapa_padrao";
 
 interface NovaEntregaScreenProps {
   onVoltar?: () => void;
@@ -58,31 +51,6 @@ function validarCep(texto: string): string {
 }
 
 // ============================================================================
-// Hook: preferência de mapa
-// ============================================================================
-function useAppMapaPadrao() {
-  const [app, setApp] = useState<AppMapaTipo>("google");
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const salvo = (await AsyncStorage.getItem(CHAVE_APP_PADRAO)) as AppMapaTipo | null;
-        if (salvo) setApp(salvo);
-      } catch {}
-    })();
-  }, []);
-
-  const atualizar = useCallback(async (novo: AppMapaTipo) => {
-    setApp(novo);
-    try {
-      await AsyncStorage.setItem(CHAVE_APP_PADRAO, novo);
-    } catch {}
-  }, []);
-
-  return [app, atualizar] as const;
-}
-
-// ============================================================================
 // Subcomponentes
 // ============================================================================
 
@@ -117,29 +85,6 @@ const FormInput: React.FC<FormInputProps> = React.memo(
 );
 FormInput.displayName = "FormInput";
 
-/** Botão de escolha de app de mapa */
-const AppMapaOption: React.FC<{
-  label: string;
-  selecionado: boolean;
-  onPress: () => void;
-}> = React.memo(({ label, selecionado, onPress }) => (
-  <TouchableOpacity
-    className={`flex-1 flex-row items-center justify-center p-3 rounded-xl border ${
-      selecionado ? "bg-[#1E2E48] border-[#22C55E]" : "bg-[#152033] border-[#22334F]"
-    }`}
-    onPress={onPress}
-  >
-    <Ionicons
-      name={selecionado ? "checkmark-circle" : "ellipse-outline"}
-      size={18}
-      color={selecionado ? "#22C55E" : "#64748B"}
-      style={{ marginRight: 8 }}
-    />
-    <Text className="text-white text-xs font-semibold">{label}</Text>
-  </TouchableOpacity>
-));
-AppMapaOption.displayName = "AppMapaOption";
-
 // ============================================================================
 // Componente principal
 // ============================================================================
@@ -163,7 +108,6 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
   const [cepTouched, setCepTouched] = useState(false);
 
   const [adicionarARotaAtual, setAdicionarARotaAtual] = useState(true);
-  const [appMapaSelecionado, setAppMapaSelecionado] = useAppMapaPadrao();
   const [carregando, setCarregando] = useState(false);
   const [cidadeDetectadaViaGPS, setCidadeDetectadaViaGPS] = useState(false);
 
@@ -213,15 +157,11 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
     })();
   }, []);
 
-  // ----------------------------------------------------------------
-  // Handlers
-  // ----------------------------------------------------------------
   const handleVoltarAction = useCallback(() => {
     if (onVoltar) onVoltar();
     else if (navigation.canGoBack()) navigation.goBack();
   }, [onVoltar, navigation]);
 
-  // Telefone com máscara + validação sob demanda
   const handleTelefoneChange = useCallback(
     (texto: string) => {
       const formatado = formatarTelefone(texto);
@@ -238,7 +178,6 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
     setTelefoneErro(validarCelular(telefone));
   }, [telefone]);
 
-  // CEP com máscara + validação sob demanda
   const handleCepChange = useCallback(
     (texto: string) => {
       const formatado = formatarCep(texto);
@@ -269,7 +208,6 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
       return;
     }
 
-    // Captura localização atual do GPS (se disponível) para servir de contexto automático de cidade
     let latUsuario: number | undefined;
     let lonUsuario: number | undefined;
 
@@ -297,12 +235,10 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
         nomeDestinatario: nomeDestinatario.trim(),
         telefone: telefone.replace(/\D/g, ""),
         adicionarARotaAtual,
-        appMapa: appMapaSelecionado,
-        latUsuario, // <--- Enviado automaticamente ao backend
-        lonUsuario, // <--- Enviado automaticamente ao backend
+        latUsuario,
+        lonUsuario,
       });
 
-      await AsyncStorage.setItem(CHAVE_APP_PADRAO, appMapaSelecionado);
       limparFormulario();
       Alert.alert("Sucesso", "Entrega cadastrada com sucesso!");
       onEntregaSalva?.();
@@ -327,15 +263,11 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
     nomeDestinatario,
     telefone,
     adicionarARotaAtual,
-    appMapaSelecionado,
     onEntregaSalva,
     handleVoltarAction,
     limparFormulario,
   ]);
 
-  // ----------------------------------------------------------------
-  // Renderização
-  // ----------------------------------------------------------------
   return (
     <SafeAreaView className="flex-1 bg-[#0b1320] px-4 pt-2">
       <StatusBar barStyle="light-content" />

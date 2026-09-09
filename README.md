@@ -1,6 +1,6 @@
 # 🚚 Delivery Fast - Otimizador de Rotas de Entrega
 
-Aplicação mobile completa desenvolvida para entregadores otimizarem rotas de entrega dinamicamente a partir da sua **localização atual via GPS**. O sistema calcula o trajeto mais rápido e econômico e abre a sequência direto no **Google Maps**.
+Aplicação mobile completa desenvolvida para entregadores otimizarem rotas de entrega dinamicamente a partir da sua **localização atual via GPS**. O sistema combina o algoritmo de resolução do problema do caixeiro-viajante do **OSRM** para reordenação com a precisão porta-a-porta do **Google Maps** para navegação final[cite: 3, 4, 6].
 
 ---
 
@@ -8,20 +8,24 @@ Aplicação mobile completa desenvolvida para entregadores otimizarem rotas de e
 
 ### **Mobile (Frontend)**
 
-- **React Native** com **Expo**
-- **TypeScript**
-- **TailwindCSS / NativeWind** (Estilização)
-- **Expo Location** (Captura de coordenadas via GPS)
-- **React Navigation**
-- **Axios** (Consumo da API)
+- **React Native** com **Expo**[cite: 1, 2]
+- **TypeScript**[cite: 1, 2]
+- **TailwindCSS / NativeWind** (Estilização utilitária)[cite: 1, 2]
+- **Expo Location** (Captura de GPS do entregador e reverse geocoding automático da cidade)[cite: 1, 2]
+- **Expo Haptics** (Feedbacks táteis para ações de ordenação, conclusão e remoção)
+- **React Navigation** (Gerenciamento de fluxo de telas e pilhas de navegação)[cite: 1, 2]
+- **Axios** (Cliente HTTP para API REST)[cite: 1, 2]
+- **AsyncStorage** (Persistência e cache local para resiliência offline)[cite: 1, 2]
+- **Jest & React Native Testing Library** (Testes unitários e de integração de componentes)
 
 ### **Backend**
 
-- **Node.js** com **Fastify**
-- **TypeScript**
-- **Supabase** (Banco de dados PostgreSQL e ORM)
-- **OSRM (Open Source Routing Machine)** (Algoritmo de cálculo e otimização de rotas/Trip API)
-- **Nominatim / OpenStreetMap** (Geocodificação de endereços)
+- **Node.js** com **Fastify**[cite: 4]
+- **TypeScript**[cite: 4]
+- **Supabase** (Banco de dados relacional PostgreSQL e persistência de dados)[cite: 4]
+- **OSRM (Open Source Routing Machine)** (Trip API para otimização de percurso com base no `waypoint_index`)
+- **Nominatim / OpenStreetMap** (Geocodificação de endereços no momento do cadastro com suporte a CEP)[cite: 4]
+- **Vitest** (Suíte completa de testes unitários e de integração de rotas e serviços)
 
 ---
 
@@ -31,80 +35,94 @@ O projeto é estruturado em formato **monorepo**:
 
 ```text
 delivery_fast_app/
-├── backend/               # Servidor Fastify & Integrações
+├── backend/                    # Servidor Fastify & Integrações
 │   ├── src/
-│   │   ├── routes/        # Endpoints da API
-│   │   └── services/      # Integrações (Supabase, OSRM, Geocoding)
+│   │   ├── routes/             # Rotas Fastify (CRUD de entregas, otimização e histórico)
+│   │   │   └── __tests__/      # Testes de integração de endpoints
+│   │   └── services/           # Supabase, OSRM Service e Geocodificação
+│   │       └── __tests__/      # Testes unitários do algoritmo OSRM
 │   └── package.json
-├── frontend/              # Aplicativo React Native (Expo)
+├── frontend/                   # Aplicativo React Native (Expo)
 │   ├── src/
-│   │   ├── components/    # Componentes modulares de UI
-│   │   ├── services/      # Cliente HTTP (Axios)
-│   │   └── utils/         # Navegação e deep linking (Google Maps)
+│   │   ├── components/         # GerenciadorRotas, ResumoRotaCard e UI modular
+│   │   ├── navigation/         # Configuração de rotas e Stacks do React Navigation
+│   │   ├── screens/            # HomeScreen, NovaEntregaScreen e HistoricoScreen
+│   │   │   └── __tests__/      # Testes automatizados de telas e componentes
+│   │   ├── services/           # Cliente Axios e camada de Storage local
+│   │   └── utils/              # Deep linking com Google Maps / Waze
 │   └── package.json
 ├── .gitignore
 └── README.md
-```
+🧠 Arquitetura de Otimização e Navegação
+Geocodificação Inteligente no Cadastro (Opção 1):
+   Ao cadastrar uma parada, a cidade é pré-preenchida automaticamente via GPS do celular.
+   O backend geocodifica via Nominatim priorizando o CEP (se informado), evitando ambiguidades entre municípios e logradouros homônimos.
+   Latitude e longitude aproximadas são salvas diretamente no Supabase junto ao texto completo do endereço.
+
+   Otimização Instantânea (OSRM):
+   O botão "Otimizar Rota" envia a localização em tempo real do entregador ($P_0$) e consome os dados já armazenados no banco sem gargalos de rede.
+   A Trip API do OSRM reorganiza a sequência lógica através do mapeamento ordenado do waypoint_index.
+
+   Navegação Porta a Porta (Google Maps):Ao clicar em "Iniciar no GPS", o aplicativo despacha o texto completo e original de cada parada (rua, número, bairro e cidade) em formato de waypoints para o Google Maps.
+   O Google Maps inicia do GPS em tempo real do motoboy e localiza o número exato da residência.
 
 ⚡ Como Executar o Projeto
 Pré-requisitos
-Node.js (versão 18 ou superior)
-
-Aplicativo Expo Go instalado no celular (ou simulador Android/iOS)
-
-Conta no Supabase para banco de dados
+   Node.js (versão 18 ou superior)Celular físico com o aplicativo Expo Go (ou simulador Android/iOS)
+   Projeto criado no Supabase
 
 1. Configurando o Backend
    Acesse a pasta do backend:
+      cd backend
+   Instale as dependências:
+      npm install
 
-Bash
-cd backend
+Crie um arquivo .env configurando sua conexão do Supabase:
+   PORT=3333
+   SUPABASE_URL=[https://seu-projeto.supabase.co](https://seu-projeto.supabase.co)
+   SUPABASE_KEY=sua-chave-service-role-ou-anon
+
+Execute os testes automatizados do backend (14 testes):
+   npm test
+
+Inicie o servidor Fastify:
+   npm run dev
+
+2. Configurando o FrontendEm outro terminal, acesse a pasta do frontend:cd frontend
 Instale as dependências:
+   npm install
 
-Bash
-npm install
-Crie um arquivo .env baseado no seu banco do Supabase:
+Configure a baseURL no arquivo src/services/api.ts com o endereço IP local da sua máquina:
+   TypeScriptexport const api = axios.create({
+      baseURL: "http://SEU_IP_LOCAL:3333/api/v1",
+   });
 
-Snippet de código
-PORT=3333
-SUPABASE_URL=[https://seu-projeto.supabase.co](https://seu-projeto.supabase.co)
-SUPABASE_KEY=sua-chave-anon-ou-service-role
-Execute o servidor em modo de desenvolvimento:
+Execute os testes unitários do aplicativo (12 testes):
+   npm test
 
-Bash
-npm run dev 2. Configurando o Frontend
-Em outro terminal, acesse a pasta do frontend:
-
-Bash
-cd frontend
-Instale as dependências:
-
-Bash
-npm install
-Configure o arquivo src/services/api.ts com o endereço IP da sua máquina local:
-
-TypeScript
-export const api = axios.create({
-baseURL: 'http://SEU_IP_LOCAL:3333/api/v1',
-});
 Inicie o Expo:
+   npx expo start
 
-Bash
-npx expo start
-Escaneie o QR Code com a câmera do celular (iOS) ou via app Expo Go (Android).
+Escaneie o QR Code com o aplicativo Expo Go no celular.
 
 📌 Principais Funcionalidades
-[x] Cadastro e gerenciamento de entregas pendentes.
+[x] Localização Dinâmica via GPS: O trajeto sempre parte do ponto em que o entregador se encontra no momento[cite: 1, 3].
 
-[x] Leitura do GPS do dispositivo em tempo real como ponto inicial da rota.
+[x] Cadastro Inteligente: Detecção automática do município via GPS e suporte a CEP com máscara formatadora.
 
-[x] Otimização de sequência com OSRM (Algoritmo do Caixeiro Viajante - TSP).
+[x] Otimização Rápida com OSRM: Algoritmo do Caixeiro Viajante (TSP) com tempo de resposta em milissegundos[cite: 4, 6].
 
-[x] Trajeto direto e multi-stops integrado nativamente ao Google Maps.
+[x] Reordenação Manual: Possibilidade de subir ou descer qualquer parada manualmente através de setas no card.
 
-[x] Suporte a rotas com 1 ou múltiplas entregas.
+[x] Navegação Multiparadas: Envio da rota completa para o aplicativo do Google Maps com texto exato para evitar erros de número de casa.
 
-📝 Licença
-Este projeto está sob a licença MIT. Sinta-se à vontade para estudar e utilizar o código!
+[x] Ações Rápidas de Contato: Botões integrados em cada card para realizar ligação telefônica imediata (tel:) ou abrir conversa direta no WhatsApp com mensagem de chegada pré-formatada.
 
----
+[x] Histórico e Métricas: Resumo de entregas concluídas no dia, economia estimada em combustível e controle de status de conclusão individual ou em massa.
+
+[x] Resiliência Offline: Cache automático de rotas locais via AsyncStorage caso haja perda de conexão[cite: 1].
+
+[x] Cobertura Completa de Testes: 26 testes automatizados cobrindo integração de endpoints Fastify, regras do OSRM e componentes React Native.
+
+📝 LicençaEste projeto está sob a licença MIT.
+```

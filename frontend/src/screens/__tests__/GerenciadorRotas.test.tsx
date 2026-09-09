@@ -1,6 +1,6 @@
 import React from "react";
 import { render, fireEvent, waitFor, act } from "@testing-library/react-native";
-import { Alert, TouchableOpacity } from "react-native";
+import { Alert, Linking, TouchableOpacity } from "react-native";
 import { api } from "../../services/api";
 import { GerenciadorRotas } from "../../components/GerenciadorRotas";
 
@@ -129,5 +129,35 @@ describe("Componente: GerenciadorRotas", () => {
       expect(api.delete).toHaveBeenCalledWith("/entregas/1");
       expect(mockOnAtualizarLista).toHaveBeenCalled();
     });
+  });
+
+  test("Deve disparar ligação com número limpo ao clicar em Ligar", () => {
+    const spyLinking = jest.spyOn(Linking, "openURL").mockResolvedValue(true as any);
+    const mockParadasComTelefone = [{ id: "1", ordem: 1, rua: "Rua A, 100", lat: -28.298, lon: -54.263, telefone: "(55) 99999-8877" }];
+
+    const { getByText } = render(
+      <GerenciadorRotas paradas={mockParadasComTelefone} onAtualizarLista={mockOnAtualizarLista} onReordenarLocal={mockOnReordenarLocal} />,
+    );
+
+    const botaoLigar = getByText("Ligar");
+    fireEvent.press(botaoLigar);
+
+    expect(spyLinking).toHaveBeenCalledWith("tel:55999998877");
+  });
+
+  test("Deve abrir WhatsApp com mensagem predefinida ao clicar em WhatsApp", () => {
+    const spyLinking = jest.spyOn(Linking, "openURL").mockResolvedValue(true as any);
+    const mockParadasComContato = [
+      { id: "1", ordem: 1, rua: "Rua A, 100", lat: -28.298, lon: -54.263, telefone: "55999998877", nomeDestinatario: "Maria" },
+    ];
+
+    const { getByText } = render(
+      <GerenciadorRotas paradas={mockParadasComContato} onAtualizarLista={mockOnAtualizarLista} onReordenarLocal={mockOnReordenarLocal} />,
+    );
+
+    const botaoWhats = getByText("WhatsApp");
+    fireEvent.press(botaoWhats);
+
+    expect(spyLinking).toHaveBeenCalledWith(expect.stringContaining("whatsapp://send?phone=55999998877"));
   });
 });

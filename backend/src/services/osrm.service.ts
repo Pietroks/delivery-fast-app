@@ -1,6 +1,7 @@
 import axios from "axios";
 
-interface PontoRota {
+export interface PontoRota {
+  id?: string;
   lat: number;
   lon: number;
   enderecoOriginal: string;
@@ -40,6 +41,7 @@ export async function otimizarSequencia(pontos: PontoRota[]) {
       .sort((a: any, b: any) => a.ordemCalculada - b.ordemCalculada)
       .map((item: any, index: number) => ({
         ordem: index + 1,
+        id: item.pontoOriginal?.id,
         endereco: item.pontoOriginal?.enderecoOriginal,
         lat: item.pontoOriginal?.lat,
         lon: item.pontoOriginal?.lon,

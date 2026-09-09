@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { Text, View } from "react-native";
 
 export interface ResumoRotaData {
-  totalEntragas: number;
+  totalEntregas: number;
   distanciaKm: number;
   tempoEstimadoMin: number;
   economiaEstimadaRs: number;
@@ -14,7 +14,7 @@ interface ResumoRotaCardProps {
 }
 
 export const ResumoRotaCard: React.FC<ResumoRotaCardProps> = React.memo(({ resumo, fallbackTotalEntregas }) => {
-  const totalEntregas = useMemo(() => resumo?.totalEntragas ?? fallbackTotalEntregas, [resumo?.totalEntragas, fallbackTotalEntregas]);
+  const totalEntregas = useMemo(() => resumo?.totalEntregas ?? fallbackTotalEntregas, [resumo?.totalEntregas, fallbackTotalEntregas]);
 
   const distanciaTotal = useMemo(() => resumo?.distanciaKm ?? 0, [resumo?.distanciaKm]);
 

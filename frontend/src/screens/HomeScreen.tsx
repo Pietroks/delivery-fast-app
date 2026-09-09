@@ -19,6 +19,8 @@ export interface Parada {
   horarioEstimado?: string;
   lat: number;
   lon: number;
+  telefone?: string;
+  nomeDestinatario?: string;
 }
 
 export default function HomeScreen() {

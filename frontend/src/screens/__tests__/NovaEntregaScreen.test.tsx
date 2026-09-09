@@ -50,4 +50,10 @@ describe("Tela Completa: NovaEntregaScreen", () => {
 
     expect(api.post).not.toHaveBeenCalled();
   }, 10000);
+
+  test("Não deve renderizar opções legadas de seleção de aplicativo de mapa (Waze)", () => {
+    const { queryByText } = render(<NovaEntregaScreen />);
+    expect(queryByText("Waze")).toBeNull();
+    expect(queryByText("Google Maps")).toBeNull();
+  });
 });

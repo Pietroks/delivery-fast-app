@@ -1,7 +1,8 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { supabase } from "../services/supabase";
 import axios from "axios";
-import { otimizarSequencia } from "../services/osrm.service";
+import { otimizarSequencia, PontoRota } from "../services/osrm.service";
+import { CriarEntregaInput, criarEntregaSchema, OtimizarRotaInput, otimizarRotaSchema } from "../schemas/rotas.schema";
 
 // ============================================================================
 // Tipos
@@ -15,6 +16,8 @@ interface ParadaFormatada {
   horarioEstimado: string;
   lat: number;
   lon: number;
+  telefone?: string;
+  nomeDestinatario?: string;
 }
 
 interface ResumoRota {
@@ -33,14 +36,18 @@ interface EntregaDB {
   lat?: number;
   lon?: number;
   status?: string;
+  telefone?: string;
+  nome_destinatario?: string;
+  referencia?: string;
+  updated_at?: string;
 }
 
 // ============================================================================
-// Funções auxiliares
+// Funções Auxiliares
 // ============================================================================
 
 function calcularResumoReal(totalEntregas: number, distanciaMetros: number = 0, duracaoSegundos: number = 0): ResumoRota {
-  const distanciaKm = Number((distanciaMetros / 1000).toFixed(1));
+  const distanciaKm = distanciaMetros === 0 ? 0 : Number((distanciaMetros / 1000).toFixed(1));
   const tempoEstimadoMin = Math.round(duracaoSegundos / 60);
   const economiaEstimadaRs = Number((distanciaKm * 0.45).toFixed(2));
 
@@ -61,6 +68,8 @@ function formatarParadas(entregas: EntregaDB[]): ParadaFormatada[] {
     horarioEstimado: item.horario_estimado ?? "",
     lat: item.lat ?? 0,
     lon: item.lon ?? 0,
+    telefone: item.telefone ?? (item as any).telefone ?? "",
+    nomeDestinatario: item.nome_destinatario ?? (item as any).nomeDestinatario ?? "",
   }));
 }
 
@@ -103,11 +112,22 @@ async function geocodificarNoCadastro(enderecoCompleto: string): Promise<{ lat: 
 // ============================================================================
 
 async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply) {
-  try {
-    const body = request.body as any;
+  const validacao = criarEntregaSchema.safeParse(request.body);
+  if (!validacao.success) {
+    return reply.status(400).send({
+      sucesso: false,
+      erro: validacao.error.issues[0]?.message || "Dados de entrega inválidos.",
+    });
+  }
 
+  const body: CriarEntregaInput = validacao.data;
+
+  try {
     const enderecoFormatado =
-      body.endereco || `${body.rua ?? ""}, ${body.numero ?? ""}${body.bairro ? ` - ${body.bairro}` : ""}, ${body.cidade ?? ""}`;
+      body.endereco ||
+      `${body.rua}${body.numero ? `, ${body.numero}` : ""}${body.bairro ? ` - ${body.bairro}` : ""}${
+        body.cidade ? `, ${body.cidade}` : ""
+      }${body.cep ? ` - CEP: ${body.cep}` : ""}`;
 
     const agora = new Date();
     const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
@@ -123,9 +143,9 @@ async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply)
           horario_estimado: horaAtual,
           lat: coords.lat,
           lon: coords.lon,
-          nome_destinatario: body.nomeDestinatario,
-          telefone: body.telefone,
-          referencia: body.referencia,
+          nome_destinatario: body.nomeDestinatario || "",
+          telefone: body.telefone || "",
+          referencia: body.referencia || "",
           status: "pendente",
         },
       ])
@@ -139,8 +159,8 @@ async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply)
 
     return reply.status(201).send({ sucesso: true, entrega: data });
   } catch (error: unknown) {
-    const mensagem = error instanceof Error ? error.message : "Erro inesperado.";
-    return reply.status(400).send({ sucesso: false, erro: mensagem });
+    request.log.error({ error }, "Erro inesperado ao cadastrar entrega");
+    return reply.status(500).send({ sucesso: false, erro: "Erro ao salvar no banco de dados." });
   }
 }
 
@@ -166,12 +186,15 @@ async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyRep
   if (coordsValidas.length >= 2) {
     try {
       const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsValidas.join(";")}`;
-      const { data } = await axios.get(osrmUrl, { timeout: 3000 });
-      if (data?.routes?.[0]) {
-        distanciaMetros = data.routes[0].distance;
-        duracaoSegundos = data.routes[0].duration;
+      const response = await axios.get(osrmUrl, { timeout: 3000 });
+      if (response?.data?.routes?.[0]) {
+        distanciaMetros = response.data.routes[0].distance;
+        duracaoSegundos = response.data.routes[0].duration;
       }
-    } catch {}
+    } catch {
+      distanciaMetros = 0;
+      duracaoSegundos = 0;
+    }
   }
 
   const resumo = calcularResumoReal(paradasFormatadas.length, distanciaMetros, duracaoSegundos);
@@ -184,10 +207,8 @@ async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyRep
 
 async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply) {
   try {
-    const { latUsuario, lonUsuario } = request.body as {
-      latUsuario?: number;
-      lonUsuario?: number;
-    };
+    const validacao = otimizarRotaSchema.safeParse(request.body || {});
+    const { latUsuario, lonUsuario }: OtimizarRotaInput = validacao.success ? validacao.data : {};
 
     const { data: entregas, error } = await supabase
       .from("entregas")
@@ -200,9 +221,7 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
     }
 
     const entregasTipadas = entregas as EntregaDB[];
-
-    // Otimização ultra-rápida lendo lat/lon direto do banco sem chamadas externas ao Nominatim
-    const pontosEntrada = [];
+    const pontosEntrada: PontoRota[] = [];
 
     if (latUsuario && lonUsuario && latUsuario !== 0 && lonUsuario !== 0) {
       pontosEntrada.push({ lat: latUsuario, lon: lonUsuario, enderecoOriginal: "Sua Localização (GPS)" });
@@ -210,6 +229,7 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
 
     entregasTipadas.forEach((e) => {
       pontosEntrada.push({
+        id: e.id,
         lat: e.lat ?? 0,
         lon: e.lon ?? 0,
         enderecoOriginal: e.rua,
@@ -220,7 +240,11 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
 
     let novaOrdem = 1;
     for (const item of pontosOtimizados) {
-      const entregaCorrespondente = entregasTipadas.find((e) => e.rua === item.endereco);
+      // Localiza por ID ou pelo logradouro
+      const entregaCorrespondente = entregasTipadas.find(
+        (e) => (item.id && e.id === item.id) || e.rua === (item as any).endereco || e.rua === (item as any).enderecoOriginal,
+      );
+
       if (entregaCorrespondente) {
         await supabase.from("entregas").update({ ordem: novaOrdem }).eq("id", entregaCorrespondente.id);
         novaOrdem++;
