@@ -1,8 +1,18 @@
 import axios from "axios";
-
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.204:3000/api/v1";
+import { supabase } from "./supabase";
 
 export const api = axios.create({
-  baseURL: BASE_URL,
-  timeout: 10000,
+  baseURL: process.env.EXPO_PUBLIC_API_URL,
+});
+
+api.interceptors.request.use(async (config) => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`;
+  }
+
+  return config;
 });

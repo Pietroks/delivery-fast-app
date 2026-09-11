@@ -1,6 +1,6 @@
 import React from "react";
 import { render, fireEvent, waitFor, act } from "@testing-library/react-native";
-import { Alert, Linking, TouchableOpacity } from "react-native";
+import { Alert, Linking, TouchableOpacity, FlatList } from "react-native";
 import { api } from "../../services/api";
 import { GerenciadorRotas } from "../../components/GerenciadorRotas";
 
@@ -159,5 +159,27 @@ describe("Componente: GerenciadorRotas", () => {
     fireEvent.press(botaoWhats);
 
     expect(spyLinking).toHaveBeenCalledWith(expect.stringContaining("whatsapp://send?phone=55999998877"));
+  });
+
+  test("Deve acionar onRefresh ao puxar a lista para baixo (Pull-to-Refresh)", () => {
+    const mockOnRefresh = jest.fn();
+    const { UNSAFE_getByType } = render(
+      <GerenciadorRotas
+        paradas={mockParadas}
+        onAtualizarLista={mockOnAtualizarLista}
+        onReordenarLocal={mockOnReordenarLocal}
+        refreshing={false}
+        onRefresh={mockOnRefresh}
+      />,
+    );
+
+    const flatList = UNSAFE_getByType(FlatList);
+
+    // Acessa a prop de refreshControl e dispara a função manualmente
+    act(() => {
+      flatList.props.refreshControl.props.onRefresh();
+    });
+
+    expect(mockOnRefresh).toHaveBeenCalledTimes(1);
   });
 });

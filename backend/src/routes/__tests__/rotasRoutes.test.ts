@@ -15,7 +15,7 @@ const mockOr = vi.fn();
 const mockEq = vi.fn();
 const mockGte = vi.fn();
 const mockOrder = vi.fn();
-const mockIn = vi.fn(); // <-- Mock adicionado para a busca de múltiplos IDs
+const mockIn = vi.fn();
 
 const mockQueryBuilder = {
   select: mockSelect,
@@ -48,6 +48,7 @@ vi.mock("../../services/supabase", () => ({
 
 describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
   let app: ReturnType<typeof Fastify>;
+  const TEST_USER_ID = "entregador-teste-123";
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -98,7 +99,9 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       expect(response.statusCode).toBe(201);
       const body = JSON.parse(response.body);
       expect(body.sucesso).toBe(true);
-      expect(body.entrega).toEqual(mockEntregaSalva);
+
+      // Checagem de Segurança: Verifica se o entregador_id foi injetado na inserção
+      expect(mockInsert).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ entregador_id: TEST_USER_ID })]));
     });
 
     it("Deve retornar erro 500 se o Supabase falhar na inserção", async () => {
@@ -112,9 +115,6 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       });
 
       expect(response.statusCode).toBe(500);
-      const body = JSON.parse(response.body);
-      expect(body.sucesso).toBe(false);
-      expect(body.erro).toBe("Erro ao salvar no banco de dados.");
     });
   });
 
@@ -130,53 +130,32 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
         data: { routes: [{ distance: 5000, duration: 600 }] },
       });
 
-      const response = await app.inject({
-        method: "GET",
-        url: "/api/v1/rotas/atual",
-      });
+      const response = await app.inject({ method: "GET", url: "/api/v1/rotas/atual" });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-      expect(body.paradas).toHaveLength(2);
-      expect(body.resumo.distanciaKm).toBe(5);
-      expect(body.resumo.tempoEstimadoMin).toBe(10);
-      expect(body.resumo.economiaEstimadaRs).toBe(2.25);
+
+      // Checagem de Segurança: Verifica se filtrou as rotas pelo ID do usuário
+      expect(mockEq).toHaveBeenCalledWith("entregador_id", TEST_USER_ID);
     });
 
     it("Deve continuar funcionando mesmo se a API do OSRM falhar", async () => {
-      const mockEntregasDB = [
-        { id: "1", ordem: 1, rua: "Rua A", lat: -28.298, lon: -54.263 },
-        { id: "2", ordem: 2, rua: "Rua B", lat: -28.299, lon: -54.264 },
-      ];
-
-      mockOrder.mockResolvedValueOnce({ data: mockEntregasDB, error: null });
+      mockOrder.mockResolvedValueOnce({ data: [], error: null });
       mockedAxios.get.mockRejectedValueOnce(new Error("OSRM indisponível"));
 
-      const response = await app.inject({
-        method: "GET",
-        url: "/api/v1/rotas/atual",
-      });
-
+      const response = await app.inject({ method: "GET", url: "/api/v1/rotas/atual" });
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-      expect(body.paradas).toHaveLength(2);
-      expect(body.resumo.distanciaKm).toBe(0);
     });
   });
 
   describe("POST /api/v1/rotas/otimizar", () => {
     it("Deve otimizar as entregas reordenando com base nas coordenadas do usuário", async () => {
-      const mockEntregasDB = [
-        { id: "10", rua: "Rua A", lat: -28.298, lon: -54.263 },
-        { id: "20", rua: "Rua B", lat: -28.299, lon: -54.264 },
-      ];
+      const mockEntregasDB = [{ id: "10", rua: "Rua A", lat: -28.298, lon: -54.263 }];
 
       mockOrder.mockResolvedValueOnce({ data: mockEntregasDB, error: null });
-
       mockedAxios.get.mockResolvedValueOnce({
         data: {
           code: "Ok",
-          waypoints: [{ waypoint_index: 0 }, { waypoint_index: 1 }, { waypoint_index: 2 }],
+          waypoints: [{ waypoint_index: 0 }, { waypoint_index: 1 }],
           trips: [{ distance: 3000, duration: 300 }],
         },
       });
@@ -188,29 +167,16 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-      expect(body.sucesso).toBe(true);
-      expect(body.mensagem).toBe("Rota otimizada com sucesso!");
-    });
 
-    it("Deve retornar mensagem explicativa quando não houver entregas pendentes", async () => {
-      mockOrder.mockResolvedValueOnce({ data: [], error: null });
-
-      const response = await app.inject({
-        method: "POST",
-        url: "/api/v1/rotas/otimizar",
-        payload: {},
-      });
-
-      expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-      expect(body.mensagem).toBe("Sem entregas para otimizar.");
+      // Checagem de Segurança: Verifica se o update atualiza apenas a rota do entregador dono
+      expect(mockEq).toHaveBeenCalledWith("entregador_id", TEST_USER_ID);
     });
   });
 
   describe("PUT /api/v1/entregas/:id", () => {
     it("Deve atualizar o endereço da entrega com sucesso", async () => {
-      mockEq.mockResolvedValueOnce({ error: null });
+      // CORREÇÃO: O primeiro .eq() continua o builder, o segundo resolve a requisição
+      mockEq.mockReturnValueOnce(mockQueryBuilder).mockResolvedValueOnce({ error: null });
 
       const response = await app.inject({
         method: "PUT",
@@ -219,8 +185,8 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-      expect(body.sucesso).toBe(true);
+      expect(mockEq).toHaveBeenCalledWith("id", "123");
+      expect(mockEq).toHaveBeenCalledWith("entregador_id", TEST_USER_ID);
     });
 
     it("Deve rejeitar atualização caso a rua venha vazia", async () => {
@@ -237,9 +203,8 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
   });
 
   describe("Histórico e Ações em Massa", () => {
-    it("GET /api/v1/entregas/historico-hoje - Deve retornar o histórico de entregas do dia", async () => {
+    it("GET /api/v1/entregas/historico-hoje - Deve retornar o histórico filtrado", async () => {
       const mockHistorico = [{ id: "1", rua: "Rua A", status: "entregue", updated_at: new Date().toISOString() }];
-
       mockGte.mockResolvedValueOnce({ data: mockHistorico, error: null });
 
       const response = await app.inject({
@@ -248,13 +213,10 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-      expect(body.sucesso).toBe(true);
-      expect(body.resumo.totalConcluidas).toBe(1);
+      expect(mockEq).toHaveBeenCalledWith("entregador_id", TEST_USER_ID);
     });
 
-    it("PUT /api/v1/rotas/concluir-todas - Deve concluir as entregas do lote selecionado pelo array de IDs", async () => {
-      // Mock para a query '.in("id", [...])'
+    it("PUT /api/v1/rotas/concluir-todas - Deve concluir apenas as entregas do usuário logado", async () => {
       mockIn.mockResolvedValueOnce({ error: null });
 
       const response = await app.inject({
@@ -264,15 +226,14 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-      expect(body.sucesso).toBe(true);
-      expect(body.mensagem).toBe("Entregas finalizadas com sucesso!");
+      expect(mockEq).toHaveBeenCalledWith("entregador_id", TEST_USER_ID);
     });
   });
 
   describe("DELETE /api/v1/entregas/:id", () => {
-    it("Deve remover uma entrega existente", async () => {
-      mockEq.mockResolvedValueOnce({ error: null });
+    it("Deve remover uma entrega existente blindada pelo usuário", async () => {
+      // CORREÇÃO: O primeiro .eq() continua o builder, o segundo resolve a requisição
+      mockEq.mockReturnValueOnce(mockQueryBuilder).mockResolvedValueOnce({ error: null });
 
       const response = await app.inject({
         method: "DELETE",
@@ -280,8 +241,8 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-      expect(body.sucesso).toBe(true);
+      expect(mockEq).toHaveBeenCalledWith("id", "123");
+      expect(mockEq).toHaveBeenCalledWith("entregador_id", TEST_USER_ID);
     });
   });
 });

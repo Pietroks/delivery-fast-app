@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -7,6 +7,7 @@ import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import HomeScreen from "../screens/HomeScreen";
 import NovaEntregaScreen from "../screens/NovaEntregaScreen";
 import HistoricoScreen from "../screens/HistoricoScreen";
+import { useAuth } from "../contexts/AuthContext";
 
 export type TabParamList = {
   Inicio: undefined;
@@ -48,30 +49,31 @@ const TABS: TabConfig[] = [
     component: HistoricoScreen,
     icon: ({ color, focused }) => <Ionicons name={focused ? "time" : "time-outline"} size={20} color={color} />,
   },
-  {
-    name: "Mais",
-    label: "Mais",
-    component: HomeScreen,
-    icon: ({ color }) => <Feather name="more-horizontal" size={20} color={color} />,
-  },
 ];
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
 export default function TabNavigator() {
   const insets = useSafeAreaInsets();
+  const { signOut } = useAuth();
 
   const paddingBottomCalculado = Platform.OS === "android" ? Math.max(insets.bottom, 8) : insets.bottom + 4;
   const alturaCalculada = 60 + insets.bottom;
+
+  const handleLogout = () => {
+    Alert.alert("Sair da conta", "Tem certeza que deseja sair?", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Sair", style: "destructive", onPress: async () => await signOut() },
+    ]);
+  };
 
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: true,
-        // CORRIGE O CRUZE DE TELAS E FUNDO BRANCO NAS ABAS:
         sceneStyle: { backgroundColor: "#0b1320" },
-        animation: "fade", // Adiciona animação suave de fade no menu inferior
+        animation: "fade",
         tabBarStyle: {
           backgroundColor: "#152033",
           borderTopColor: "#22334F",
@@ -81,23 +83,29 @@ export default function TabNavigator() {
         },
         tabBarActiveTintColor: "#22c55e",
         tabBarInactiveTintColor: "#94A3B8",
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: "500",
-        },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "500" },
       }}
     >
       {TABS.map((tab) => (
-        <Tab.Screen
-          key={tab.name}
-          name={tab.name}
-          component={tab.component}
-          options={{
-            tabBarLabel: tab.label,
-            tabBarIcon: tab.icon,
-          }}
-        />
+        <Tab.Screen key={tab.name} name={tab.name} component={tab.component} options={{ tabBarLabel: tab.label, tabBarIcon: tab.icon }} />
       ))}
+
+      {/* Adiciona a Aba 'Mais' como um atalho de botão que intercepta o clique e dispara o Logout */}
+      <Tab.Screen
+        name="Mais"
+        component={HomeScreen} // Componente fantasma
+        options={{
+          tabBarLabel: "Sair",
+          tabBarIcon: ({ color }) => <Feather name="log-out" size={20} color="#ef4444" />,
+          tabBarLabelStyle: { color: "#ef4444", fontSize: 10, fontWeight: "500" },
+        }}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault(); // Impede a navegação normal
+            handleLogout(); // Dispara o popup de Logout
+          },
+        }}
+      />
     </Tab.Navigator>
   );
 }

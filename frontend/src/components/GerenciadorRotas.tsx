@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { Alert, Modal, Text, TextInput, TouchableOpacity, View, FlatList, Linking } from "react-native";
+import { Alert, Modal, Text, TextInput, TouchableOpacity, View, FlatList, Linking, RefreshControl } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
@@ -11,11 +11,20 @@ interface GerenciadorRotasProps {
   onAtualizarLista: () => void;
   onAdicionarEntrega?: () => void;
   onReordenarLocal?: (novasParadas: Parada[]) => void;
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }
 
 type EstadoCarregamento = "nenhum" | "atualizacao" | "conclusao" | "exclusao";
 
-export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({ paradas, onAtualizarLista, onAdicionarEntrega, onReordenarLocal }) => {
+export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
+  paradas,
+  onAtualizarLista,
+  onAdicionarEntrega,
+  onReordenarLocal,
+  refreshing,
+  onRefresh,
+}) => {
   const navigation = useNavigation<any>();
 
   const [listaLocal, setListaLocal] = useState<Parada[]>(paradas);
@@ -210,6 +219,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({ paradas, onA
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 80 }}
+        refreshControl={<RefreshControl refreshing={refreshing || false} onRefresh={onRefresh} tintColor="#22c55e" />}
         ListEmptyComponent={
           <View className="items-center justify-center py-8">
             <Feather name="map-pin" size={32} color="#94A3B8" />

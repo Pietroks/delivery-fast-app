@@ -31,6 +31,7 @@ export default function HomeScreen() {
   const [otimizando, setOtimizando] = useState(false);
   const [modalFinalizarAberto, setModalFinalizarAberto] = useState(false);
   const [finalizando, setFinalizando] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const obterCoordenadasGPS = async (): Promise<{ lat?: number; lon?: number }> => {
     try {
@@ -80,6 +81,12 @@ export default function HomeScreen() {
       setCarregando(false);
     }
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await carregarEntregas();
+    setRefreshing(false);
+  }, [carregarEntregas]);
 
   const handleOtimizarRota = useCallback(async () => {
     if (rotas.length === 0) {
@@ -207,7 +214,13 @@ export default function HomeScreen() {
             <ActivityIndicator size="small" color="#22c55e" />
           </View>
         ) : (
-          <GerenciadorRotas paradas={rotas} onAtualizarLista={carregarEntregas} onReordenarLocal={setRotas} />
+          <GerenciadorRotas
+            paradas={rotas}
+            onAtualizarLista={carregarEntregas}
+            onReordenarLocal={setRotas}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+          />
         )}
 
         {/* Botões de Ação Inferiores */}

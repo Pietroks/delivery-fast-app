@@ -50,10 +50,11 @@ jest.mock("../../services/storage", () => ({
 }));
 
 jest.mock("../../components/GerenciadorRotas", () => {
-  const { View, Text } = require("react-native");
+  const { View, Text, TouchableOpacity } = require("react-native");
   return {
-    GerenciadorRotas: ({ paradas }: { paradas: any[] }) => (
+    GerenciadorRotas: ({ paradas, onRefresh }: { paradas: any[]; onRefresh?: () => void }) => (
       <View testID="gerenciador-rotas">
+        {onRefresh && <TouchableOpacity testID="pull-to-refresh-btn" onPress={onRefresh} />}
         {paradas.map((p: any) => (
           <Text key={p.id}>{p.rua}</Text>
         ))}
@@ -108,6 +109,27 @@ describe("Tela Completa: HomeScreen", () => {
     fireEvent.press(botaoIniciar);
 
     expect(abrirRotaGoogleMaps).toHaveBeenCalledWith(mockParadas);
+  }, 10000);
+
+  test("Deve recarregar as rotas ao acionar o Pull-to-Refresh", async () => {
+    const { getByTestId, getByText } = render(<HomeScreen />);
+
+    // Aguarda o carregamento inicial (1ª chamada à API)
+    await waitFor(() => {
+      expect(getByText("Rua A, 100")).toBeTruthy();
+      expect(api.get).toHaveBeenCalledTimes(1);
+    });
+
+    // Simula a ação de puxar a lista para baixo
+    const refreshBtn = getByTestId("pull-to-refresh-btn");
+    await act(async () => {
+      fireEvent.press(refreshBtn);
+    });
+
+    // Verifica se a função onRefresh disparou a requisição novamente (2ª chamada à API)
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledTimes(2);
+    });
   }, 10000);
 
   // ============================================================================
