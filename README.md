@@ -90,27 +90,24 @@ npm install
 
 ```
 
-Crie um arquivo `.env` configurando sua conexão do Supabase:
+Crie um arquivo `.env` configurando sua conexão do Supabase (use o modelo `.env.example`):
 
 ```env
-PORT=3333
-SUPABASE_URL=[https://seu-projeto.supabase.co](https://seu-projeto.supabase.co)
+PORT=3000
+SUPABASE_URL=https://seu-projeto.supabase.co
 SUPABASE_KEY=sua-chave-service-role-ou-anon
-
 ```
 
-Execute os testes automatizados do backend (14 testes):
+Execute os testes automatizados do backend (18 testes no Vitest):
 
 ```bash
 npm test
-
 ```
 
 Inicie o servidor Fastify:
 
 ```bash
 npm run dev
-
 ```
 
 ### 2. Configurando o Frontend
@@ -120,29 +117,26 @@ Em outro terminal, acesse a pasta do frontend:
 ```bash
 cd frontend
 npm install
-
 ```
 
-Configure a `baseURL` no arquivo `src/services/api.ts` com o endereço IP local da sua rede:
+Crie um arquivo `.env` na raiz do frontend (use o modelo `.env.example`):
 
-```typescript
-export const api = axios.create({
-  baseURL: "http://SEU_IP_LOCAL:3333/api/v1",
-});
+```env
+EXPO_PUBLIC_API_URL=http://SEU_IP_LOCAL:3000/api/v1
+EXPO_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anon-do-supabase
 ```
 
-Execute os testes unitários do aplicativo (20 testes):
+Execute os testes automatizados do aplicativo (32 testes no Jest):
 
 ```bash
 npm test
-
 ```
 
 Inicie o Expo limpando o cache:
 
 ```bash
 npx expo start -c
-
 ```
 
 Escaneie o QR Code com o aplicativo Expo Go no celular.
@@ -151,22 +145,21 @@ Escaneie o QR Code com o aplicativo Expo Go no celular.
 
 ## 📌 Principais Funcionalidades
 
-- **[x] Localização Dinâmica via GPS**: O trajeto base para cálculos e deslocamentos sempre parte do ponto físico em que o entregador se encontra no momento.
-- **[x] Cadastro Inteligente**: Detecção automática do município via GPS e suporte a CEP com máscara formatadora.
-- **[x] Otimização Rápida com OSRM**: Algoritmo do Caixeiro Viajante (TSP) reordenando e calculando distâncias precisas e tempo estimado de tráfego.
-- **[x] Lotes Inteligentes de Navegação**: Envio da rota particionada para o Google Maps respeitando limites de waypoints da URL nativa.
-- **[x] Fechamento Flexível de Lote**: Modal interativo de finalização de rota, permitindo desmarcar pacotes que não puderam ser entregues antes de mover o restante para o histórico fiscal.
+- **[x] Autenticação e Multi-Tenancy**: Sistema completo de login, cadastro e controle de acesso com Supabase Auth e Row Level Security (RLS), isolando os dados de cada entregador.
+- **[x] Importação em Massa (Colar Lista)**: Modal com parser inteligente para colar mensagens com vários endereços (WhatsApp/bloco de notas), extraindo logradouro, número, bairro, destinatário e telefone.
+- **[x] Enriquecimento Nacional via BrasilAPI**: Consulta oficial e precisa de CEP no Brasil antes do fallback geográfico para o Nominatim.
+- **[x] Localização Dinâmica via GPS**: O trajeto base para cálculos e deslocamentos sempre parte do ponto físico em que o entregador se encontra no momento ($P_0$ dinâmico).
+- **[x] Cadastro Inteligente**: Detecção automática do município via GPS e suporte a CEP com consulta prioritária.
+- **[x] Otimização Rápida com OSRM**: Algoritmo do Caixeiro Viajante (TSP) com resolução de id único, atualizações concorrentes em paralelo via `Promise.all()` e cálculo de economia estimada.
+- **[x] Navegação Contínua Multi-Lotes**: Divisão inteligente da rota em lotes sequenciais de 10 paradas com seletor visual na Home para despacho progressivo no Google Maps.
+- **[x] Fechamento Flexível de Lote**: Modal interativo de finalização de rota, permitindo desmarcar pacotes ou sinalizar insucesso (`ausente`, `nao_localizado`, `recusado`).
 - **[x] Ações Rápidas de Contato**: Botões integrados nos cards ativos para ligação telefônica imediata (`tel:`) ou mensagem direta no WhatsApp pré-formatada.
 - **[x] Histórico e Métricas**: Resumo de entregas concluídas no dia e economia estimada em reais calculada com base no trajeto otimizado.
-- **[x] Resiliência Offline**: Cache automático de rotas locais via AsyncStorage caso haja perda de conexão (áreas de sombra).
-- **[x] Cobertura Completa de Testes**: **34 testes automatizados** (14 backend, 20 frontend) assegurando integrações, componentes UI, lógicas de particionamento e permissões.
+- **[x] Resiliência Offline & Limpeza Segura**: Cache automático de rotas locais via `AsyncStorage` com fallback para áreas sem sinal e limpeza completa no logout.
+- **[x] Cobertura Completa de Testes**: **57 testes automatizados** (20 backend, 37 frontend) assegurando integrações, componentes UI, lógicas de particionamento, parsers e permissões.
 
 ---
 
 ## 📝 Licença
 
 Este projeto está sob a licença MIT.
-
-```
-
-```

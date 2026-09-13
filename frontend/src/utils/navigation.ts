@@ -15,9 +15,18 @@ function codificarEndereco(endereco?: string): string | null {
  * Abre o Google Maps traçando a rota partindo SEMPRE da localização atual do usuário (GPS)
  * cobrindo todas as entregas em sequência.
  */
-const LIMITE_MAXIMO_PARADAS = 10; // 9 waypoints + 1 destino final
+export const LIMITE_MAXIMO_PARADAS = 10; // 9 waypoints + 1 destino final
 
-export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[]) {
+export function calcularLotes<T>(itens: T[], tamanhoLote: number = LIMITE_MAXIMO_PARADAS): T[][] {
+  if (!itens || itens.length === 0) return [];
+  const lotes: T[][] = [];
+  for (let i = 0; i < itens.length; i += tamanhoLote) {
+    lotes.push(itens.slice(i, i + tamanhoLote));
+  }
+  return lotes;
+}
+
+export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[], loteIndex: number = 0) {
   if (!paradas || paradas.length === 0) {
     Alert.alert("Atenção", "Nenhuma entrega cadastrada para iniciar a rota.");
     return;
@@ -34,13 +43,15 @@ export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[]) {
       return;
     }
 
-    // Se houver mais entregas do que o limite suportado pelo Google Maps
-    let paradasParaNavegar = paradas;
-    if (paradas.length > LIMITE_MAXIMO_PARADAS) {
-      paradasParaNavegar = paradas.slice(0, LIMITE_MAXIMO_PARADAS);
+    // Paginação de paradas por lotes de 10
+    const todosLotes = calcularLotes(paradas, LIMITE_MAXIMO_PARADAS);
+    const indexValido = Math.min(Math.max(loteIndex, 0), todosLotes.length - 1);
+    const paradasParaNavegar = todosLotes[indexValido] || paradas.slice(0, LIMITE_MAXIMO_PARADAS);
+
+    if (todosLotes.length > 1) {
       Alert.alert(
         "Lote de Entregas",
-        `O Google Maps suporta até 10 paradas por vez. Traçando a rota com as primeiras ${LIMITE_MAXIMO_PARADAS} entregas da sua lista otimizada.`,
+        `O Google Maps suporta até 10 paradas por vez. Traçando a rota do Lote ${indexValido + 1} de ${todosLotes.length} (${paradasParaNavegar.length} entregas).`,
       );
     }
 

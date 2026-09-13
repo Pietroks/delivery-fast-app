@@ -11,6 +11,22 @@ const CONSUMO_MEDIO_KM_L = 10;
 const PRECO_COMBUSTIVEL = 5.8;
 
 export async function otimizarSequencia(pontos: PontoRota[]) {
+  if (!pontos || pontos.length === 0) {
+    return [];
+  }
+
+  if (pontos.length === 1) {
+    return [
+      {
+        ordem: 1,
+        id: pontos[0].id,
+        endereco: pontos[0].enderecoOriginal,
+        lat: pontos[0].lat,
+        lon: pontos[0].lon,
+      },
+    ];
+  }
+
   try {
     const coordenadasString = pontos.map((ponto) => `${ponto.lon},${ponto.lat}`).join(";");
 

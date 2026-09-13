@@ -38,14 +38,30 @@ describe("Serviço OSRM (osrm.service.ts)", () => {
       expect(resultado[2].endereco).toBe("Rua A");
     });
 
+    it("Deve retornar o ponto diretamente sem chamar OSRM quando houver apenas 1 ponto", async () => {
+      const resultado = await otimizarSequencia([{ id: "1", lat: -28.1, lon: -54.1, enderecoOriginal: "Teste" }]);
+      expect(resultado).toHaveLength(1);
+      expect(resultado[0]).toEqual({
+        ordem: 1,
+        id: "1",
+        endereco: "Teste",
+        lat: -28.1,
+        lon: -54.1,
+      });
+      expect(mockedAxios.get).not.toHaveBeenCalled();
+    });
+
     it("Deve disparar erro se a API do OSRM não retornar 'Ok'", async () => {
       mockedAxios.get.mockResolvedValueOnce({
         data: { code: "NoTrips" },
       });
 
-      await expect(otimizarSequencia([{ lat: -28.1, lon: -54.1, enderecoOriginal: "Teste" }])).rejects.toThrow(
-        "Erro na otimização da rota: Falha ao calcular rota no OSRM.",
-      );
+      await expect(
+        otimizarSequencia([
+          { lat: -28.1, lon: -54.1, enderecoOriginal: "Ponto A" },
+          { lat: -28.2, lon: -54.2, enderecoOriginal: "Ponto B" },
+        ]),
+      ).rejects.toThrow("Erro na otimização da rota: Falha ao calcular rota no OSRM.");
     });
   });
 

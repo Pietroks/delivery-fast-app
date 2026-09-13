@@ -11,6 +11,9 @@ jest.mock("@expo/vector-icons", () => ({
   Ionicons: "Ionicons",
   AntDesign: "AntDesign",
   MaterialIcons: "MaterialIcons",
+  Feather: "Feather",
+  MaterialCommunityIcons: "MaterialCommunityIcons",
+  FontAwesome: "FontAwesome",
 }));
 
 // Mock do AsyncStorage

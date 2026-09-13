@@ -1,7 +1,7 @@
 import { Alert, Linking } from "react-native";
-import { abrirRotaGoogleMaps } from "../navigation";
+import { abrirRotaGoogleMaps, calcularLotes } from "../navigation";
 
-describe("Utilitário: navigation (abrirRotaGoogleMaps)", () => {
+describe("Utilitário: navigation (abrirRotaGoogleMaps e calcularLotes)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(Linking, "openURL").mockResolvedValue(true as any);
@@ -32,5 +32,26 @@ describe("Utilitário: navigation (abrirRotaGoogleMaps)", () => {
     // O destino final deve ser a 10ª parada (índice 9), ignorando a 11ª e 12ª
     expect(Linking.openURL).toHaveBeenCalledWith(expect.stringContaining("destination=Rua%20Teste%2C%2010"));
     expect(Linking.openURL).not.toHaveBeenCalledWith(expect.stringContaining("Rua%20Teste%2C%2011"));
+  });
+
+  test("Deve calcular lotes corretamente com tamanho padrão de 10", () => {
+    const vinteECinco = Array.from({ length: 25 }, (_, i) => ({
+      rua: `Rua ${i + 1}`,
+    }));
+    const lotes = calcularLotes(vinteECinco);
+    expect(lotes).toHaveLength(3);
+    expect(lotes[0]).toHaveLength(10);
+    expect(lotes[1]).toHaveLength(10);
+    expect(lotes[2]).toHaveLength(5);
+  });
+
+  test("Deve abrir o segundo lote quando loteIndex for 1", async () => {
+    const dozeParadas = Array.from({ length: 12 }, (_, i) => ({
+      rua: `Rua Teste, ${i + 1}`,
+    }));
+
+    await abrirRotaGoogleMaps(dozeParadas, 1);
+
+    expect(Linking.openURL).toHaveBeenCalledWith(expect.stringContaining("destination=Rua%20Teste%2C%2012"));
   });
 });

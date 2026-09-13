@@ -34,3 +34,12 @@ export async function carregarRotasLocalmente(): Promise<CacheRotasData> {
     return { paradas: [], resumo: null };
   }
 }
+
+export async function limparCacheRotasLocalmente(): Promise<void> {
+  try {
+    await AsyncStorage.multiRemove([CHAVE_CACHE_ROTAS, CHAVE_CACHE_RESUMO]);
+  } catch (error) {
+    console.error("Erro ao limpar cache local de rotas:", error);
+  }
+}
+

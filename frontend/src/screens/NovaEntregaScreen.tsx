@@ -95,7 +95,7 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
   const [rua, setRua] = useState("");
   const [numero, setNumero] = useState("");
   const [bairro, setBairro] = useState("");
-  const [cidade, setCidade] = useState("Santo Ângelo");
+  const [cidade, setCidade] = useState("");
   const [cep, setCep] = useState("");
   const [cepErro, setCepErro] = useState("");
 
@@ -311,7 +311,7 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
             <TextInput
               placeholderTextColor="#64748b"
               className="bg-[#152033] border border-[#22334F] rounded-xl px-3.5 py-3 text-sm text-white"
-              placeholder="Ex: Santo Ângelo"
+              placeholder="Ex: Sua Cidade"
               value={cidade}
               onChangeText={(texto) => {
                 setCidade(texto);

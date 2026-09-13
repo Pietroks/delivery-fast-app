@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from "react";
-import { StatusBar, Text, TouchableOpacity, View, ActivityIndicator, Alert } from "react-native";
+import React, { useState, useCallback, useMemo } from "react";
+import { StatusBar, Text, TouchableOpacity, View, ActivityIndicator, Alert, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -7,10 +7,12 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { api } from "../services/api";
 import { GerenciadorRotas } from "../components/GerenciadorRotas";
-import { abrirRotaGoogleMaps } from "../utils/navigation";
+import { abrirRotaGoogleMaps, calcularLotes } from "../utils/navigation";
 import { ResumoRotaCard, ResumoRotaData } from "../components/ResumoRotaCard";
 import { FinalizarRotaModal } from "../components/FinalizarRotaModal";
+import { ImportarLoteModal } from "../components/ImportarLoteModal";
 import { carregarRotasLocalmente, salvarRotasLocalmente } from "../services/storage";
+import { useAuth } from "../contexts/AuthContext";
 
 export interface Parada {
   id: string;
@@ -25,11 +27,14 @@ export interface Parada {
 }
 
 export default function HomeScreen() {
+  const { nomeUsuario } = useAuth();
   const [rotas, setRotas] = useState<Parada[]>([]);
   const [resumo, setResumo] = useState<ResumoRotaData | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [otimizando, setOtimizando] = useState(false);
   const [modalFinalizarAberto, setModalFinalizarAberto] = useState(false);
+  const [modalImportarAberto, setModalImportarAberto] = useState(false);
+  const [loteAtivoIndex, setLoteAtivoIndex] = useState(0);
   const [finalizando, setFinalizando] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -120,6 +125,11 @@ export default function HomeScreen() {
         lonUsuario,
       });
 
+      if (response.data?.sucesso === false) {
+        Alert.alert("Erro", response.data?.erro || "Não foi possível otimizar a rota.");
+        return;
+      }
+
       const mensagem = response.data?.mensagem || "Rota otimizada com sucesso!";
       await carregarEntregas();
       Alert.alert("Sucesso", mensagem);
@@ -130,14 +140,21 @@ export default function HomeScreen() {
     }
   }, [rotas.length, carregarEntregas]);
 
+  const lotes = useMemo(() => calcularLotes(rotas), [rotas]);
+  const temVariosLotes = lotes.length > 1;
+
   const handleIniciarRota = useCallback(async () => {
     if (rotas.length === 0) return;
     try {
-      await abrirRotaGoogleMaps(rotas);
+      if (loteAtivoIndex === 0) {
+        await abrirRotaGoogleMaps(rotas);
+      } else {
+        await abrirRotaGoogleMaps(rotas, loteAtivoIndex);
+      }
     } catch {
       Alert.alert("Erro", "Não foi possível disparar a rota no GPS.");
     }
-  }, [rotas]);
+  }, [rotas, loteAtivoIndex]);
 
   const confirmarFinalizacaoLote = useCallback(
     async (idsConcluidos: string[]) => {
@@ -178,7 +195,7 @@ export default function HomeScreen() {
       <View className="flex-1">
         <View className="flex-row items-center justify-between my-3">
           <View>
-            <Text className="text-white text-lg font-bold">Olá, João!</Text>
+            <Text className="text-white text-lg font-bold">Olá, {nomeUsuario}!</Text>
             <Text className="text-[#94A3B8] text-xs">Pronto para otimizar suas entregas?</Text>
           </View>
           <TouchableOpacity className="bg-[#152033] p-2.5 rounded-full border border-[#22334f]" accessibilityLabel="Notificações">
@@ -191,23 +208,65 @@ export default function HomeScreen() {
         <View className="flex-row items-center justify-between mb-3">
           <Text className="text-white font-bold text-sm">Sua rota otimizada</Text>
 
-          {temRotas && (
+          <View className="flex-row items-center gap-2">
             <TouchableOpacity
-              onPress={handleOtimizarRota}
-              disabled={otimizando}
-              className="bg-[#1e2e48] border border-emerald-500/50 px-3 py-1.5 rounded-lg flex-row items-center gap-1.5 active:bg-emerald-950"
+              onPress={() => setModalImportarAberto(true)}
+              className="bg-[#152033] border border-[#22334f] px-2.5 py-1.5 rounded-lg flex-row items-center gap-1 active:bg-[#1e2e48]"
+              accessibilityLabel="Importar lista"
             >
-              {otimizando ? (
-                <ActivityIndicator size="small" color="#22c55e" />
-              ) : (
-                <>
-                  <Ionicons name="sparkles-outline" size={14} color="#22c55e" />
-                  <Text className="text-emerald-400 text-xs font-bold">Otimizar Rota</Text>
-                </>
-              )}
+              <Ionicons name="document-text-outline" size={13} color="#38bdf8" />
+              <Text className="text-sky-400 text-xs font-semibold">Importar</Text>
             </TouchableOpacity>
-          )}
+
+            {temRotas && (
+              <TouchableOpacity
+                onPress={handleOtimizarRota}
+                disabled={otimizando}
+                className="bg-[#1e2e48] border border-emerald-500/50 px-3 py-1.5 rounded-lg flex-row items-center gap-1.5 active:bg-emerald-950"
+              >
+                {otimizando ? (
+                  <ActivityIndicator size="small" color="#22c55e" />
+                ) : (
+                  <>
+                    <Ionicons name="sparkles-outline" size={14} color="#22c55e" />
+                    <Text className="text-emerald-400 text-xs font-bold">Otimizar Rota</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
+
+        {/* Seletor de Lotes quando rota excede 10 paradas */}
+        {temVariosLotes && (
+          <View className="mb-2.5 bg-[#152033] p-2 rounded-xl border border-[#22334f]">
+            <View className="flex-row items-center justify-between mb-1.5 px-1">
+              <Text className="text-[#94a3b8] text-[10px] font-bold uppercase">Lotes de Navegação</Text>
+              <Text className="text-emerald-400 text-[10px] font-semibold">Google Maps (10 por vez)</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+              {lotes.map((lote, index) => {
+                const isActive = index === loteAtivoIndex;
+                const inicio = index * 10 + 1;
+                const fim = index * 10 + lote.length;
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => setLoteAtivoIndex(index)}
+                    className={`px-3 py-1.5 rounded-lg border flex-row items-center gap-1.5 mr-2 ${
+                      isActive ? "bg-emerald-500/20 border-emerald-400" : "bg-[#1e2e48] border-[#22334f]"
+                    }`}
+                  >
+                    <Ionicons name="layers-outline" size={12} color={isActive ? "#22c55e" : "#94a3b8"} />
+                    <Text className={`text-xs font-bold ${isActive ? "text-emerald-400" : "text-[#94a3b8]"}`}>
+                      Lote {index + 1} ({inicio} a {fim})
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {carregando ? (
           <View className="py-8 justify-center items-center">
@@ -234,7 +293,9 @@ export default function HomeScreen() {
             accessibilityLabel="Iniciar rota"
           >
             <Ionicons name="play" size={16} color={temRotas ? "#000000" : "#64748b"} style={{ marginRight: 6 }} />
-            <Text className={`font-bold text-sm ${temRotas ? "text-black" : "text-[#64748b]"}`}>Iniciar no GPS</Text>
+            <Text className={`font-bold text-sm ${temRotas ? "text-black" : "text-[#64748b]"}`}>
+              {temVariosLotes ? `Iniciar Lote ${loteAtivoIndex + 1} no GPS` : "Iniciar no GPS"}
+            </Text>
           </TouchableOpacity>
 
           {temRotas && (
@@ -260,6 +321,13 @@ export default function HomeScreen() {
         carregando={finalizando}
         onFechar={() => setModalFinalizarAberto(false)}
         onConfirmar={confirmarFinalizacaoLote}
+      />
+
+      {/* Modal de Importação em Massa */}
+      <ImportarLoteModal
+        visivel={modalImportarAberto}
+        onFechar={() => setModalImportarAberto(false)}
+        onImportadoComSucesso={carregarEntregas}
       />
     </SafeAreaView>
   );

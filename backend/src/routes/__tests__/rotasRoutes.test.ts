@@ -118,6 +118,54 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
     });
   });
 
+  describe("POST /api/v1/entregas/lote", () => {
+    it("Deve cadastrar múltiplas entregas em lote com sucesso", async () => {
+      mockedAxios.get.mockResolvedValue({
+        data: [{ lat: "-28.298", lon: "-54.263" }],
+      });
+
+      const mockEntregasSalvas = [
+        { id: "1", rua: "Rua 1, 100", status: "pendente" },
+        { id: "2", rua: "Rua 2, 200", status: "pendente" },
+      ];
+
+      mockInsert.mockReturnValueOnce({
+        select: vi.fn().mockResolvedValueOnce({ data: mockEntregasSalvas, error: null }),
+      });
+
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/v1/entregas/lote",
+        payload: {
+          entregas: [
+            { rua: "Rua 1", numero: "100" },
+            { rua: "Rua 2", numero: "200" },
+          ],
+        },
+      });
+
+      expect(response.statusCode).toBe(201);
+      const body = JSON.parse(response.body);
+      expect(body.sucesso).toBe(true);
+      expect(body.total).toBe(2);
+      expect(mockInsert).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ entregador_id: TEST_USER_ID })]),
+      );
+    });
+
+    it("Deve rejeitar lote vazio com status 400", async () => {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/v1/entregas/lote",
+        payload: { entregas: [] },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.sucesso).toBe(false);
+    });
+  });
+
   describe("GET /api/v1/rotas/atual", () => {
     it("Deve retornar a lista de paradas formatada e o resumo calculado via OSRM", async () => {
       const mockEntregasDB = [

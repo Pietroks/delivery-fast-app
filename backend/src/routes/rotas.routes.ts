@@ -2,7 +2,14 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { supabase } from "../services/supabase";
 import axios from "axios";
 import { otimizarSequencia, PontoRota } from "../services/osrm.service";
-import { CriarEntregaInput, criarEntregaSchema, OtimizarRotaInput, otimizarRotaSchema } from "../schemas/rotas.schema";
+import {
+  CriarEntregaInput,
+  criarEntregaSchema,
+  OtimizarRotaInput,
+  otimizarRotaSchema,
+  importarLoteSchema,
+  ImportarLoteInput,
+} from "../schemas/rotas.schema";
 import { verificarToken } from "../middlewares/auth.middleware";
 
 // ============================================================================
@@ -70,9 +77,45 @@ async function geocodificarNoCadastro(
   numero?: string,
   bairro?: string,
   cidade?: string,
+  cep?: string,
 ): Promise<{ lat: number; lon: number }> {
   try {
-    const buscaCompleta = `${rua}${numero ? `, ${numero}` : ""}${bairro ? ` - ${bairro}` : ""}${cidade ? `, ${cidade}` : ""}, Brasil`;
+    const cepLimpo = cep?.replace(/\D/g, "");
+    let ruaOficial = rua;
+    let bairroOficial = bairro;
+    let cidadeOficial = cidade;
+
+    if (cepLimpo && cepLimpo.length === 8) {
+      try {
+        const { data: brasilApiData } = await axios.get(`https://brasilapi.com.br/api/cep/v2/${cepLimpo}`, {
+          timeout: 3000,
+        });
+        if (brasilApiData) {
+          if (brasilApiData.street) ruaOficial = brasilApiData.street;
+          if (brasilApiData.neighborhood) bairroOficial = brasilApiData.neighborhood;
+          if (brasilApiData.city) cidadeOficial = brasilApiData.city;
+
+          const latCoords = brasilApiData.location?.coordinates?.latitude;
+          const lonCoords = brasilApiData.location?.coordinates?.longitude;
+          if (latCoords && lonCoords && !isNaN(Number(latCoords)) && !isNaN(Number(lonCoords)) && Number(latCoords) !== 0) {
+            return { lat: parseFloat(latCoords), lon: parseFloat(lonCoords) };
+          }
+        }
+      } catch {}
+
+      try {
+        const { data: cepData } = await axios.get("https://nominatim.openstreetmap.org/search", {
+          params: { postalcode: cepLimpo, countrycodes: "br", format: "json", limit: 1 },
+          headers: { "User-Agent": "DeliveryFastApp/1.0" },
+          timeout: 3500,
+        });
+        if (cepData && cepData.length > 0) {
+          return { lat: parseFloat(cepData[0].lat), lon: parseFloat(cepData[0].lon) };
+        }
+      } catch {}
+    }
+
+    const buscaCompleta = `${ruaOficial}${numero ? `, ${numero}` : ""}${bairroOficial ? ` - ${bairroOficial}` : ""}${cidadeOficial ? `, ${cidadeOficial}` : ""}, Brasil`;
     let { data } = await axios.get("https://nominatim.openstreetmap.org/search", {
       params: { q: buscaCompleta, format: "json", limit: 1, countrycodes: "br" },
       headers: { "User-Agent": "DeliveryFastApp/1.0" },
@@ -80,8 +123,8 @@ async function geocodificarNoCadastro(
     });
     if (data && data.length > 0) return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
 
-    if (cidade) {
-      const buscaSimples = `${rua}, ${cidade}, Brasil`;
+    if (cidadeOficial) {
+      const buscaSimples = `${ruaOficial}, ${cidadeOficial}, Brasil`;
       const res = await axios.get("https://nominatim.openstreetmap.org/search", {
         params: { q: buscaSimples, format: "json", limit: 1, countrycodes: "br" },
         headers: { "User-Agent": "DeliveryFastApp/1.0" },
@@ -113,7 +156,7 @@ async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply)
       `${body.rua}${body.numero ? `, ${body.numero}` : ""}${body.bairro ? ` - ${body.bairro}` : ""}${body.cidade ? `, ${body.cidade}` : ""}${body.cep ? ` - CEP: ${body.cep}` : ""}`;
     const agora = new Date();
     const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
-    const coords = await geocodificarNoCadastro(body.rua, body.numero, body.bairro, body.cidade);
+    const coords = await geocodificarNoCadastro(body.rua, body.numero, body.bairro, body.cidade, body.cep);
 
     const { data, error } = await supabase
       .from("entregas")
@@ -140,6 +183,57 @@ async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply)
     return reply.status(500).send({ sucesso: false, erro: "Erro ao salvar no banco de dados." });
   }
 }
+
+async function importarLoteHandler(request: FastifyRequest, reply: FastifyReply) {
+  const userId = (request as any).userId;
+  const validacao = importarLoteSchema.safeParse(request.body);
+
+  if (!validacao.success) {
+    return reply.status(400).send({ sucesso: false, erro: validacao.error.issues[0]?.message || "Lote inválido." });
+  }
+
+  const { entregas } = validacao.data;
+
+  try {
+    const agora = new Date();
+    const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
+
+    // Geocodifica todas as entregas do lote em paralelo
+    const entregasProcessadas = await Promise.all(
+      entregas.map(async (item) => {
+        const coords = await geocodificarNoCadastro(item.rua, item.numero, item.bairro, item.cidade, item.cep);
+        const enderecoFormatado = `${item.rua}${item.numero ? `, ${item.numero}` : ""}${item.bairro ? ` - ${item.bairro}` : ""}${item.cidade ? `, ${item.cidade}` : ""}${item.cep ? ` - CEP: ${item.cep}` : ""}`;
+
+        return {
+          rua: enderecoFormatado,
+          bairro: item.bairro || item.cidade || "",
+          horario_estimado: horaAtual,
+          lat: coords.lat,
+          lon: coords.lon,
+          nome_destinatario: item.nomeDestinatario || "",
+          telefone: item.telefone || "",
+          referencia: item.referencia || "",
+          status: "pendente",
+          entregador_id: userId,
+        };
+      }),
+    );
+
+    const { data, error } = await supabase.from("entregas").insert(entregasProcessadas).select();
+
+    if (error) return reply.status(500).send({ sucesso: false, erro: "Erro ao salvar o lote no banco de dados." });
+
+    return reply.status(201).send({
+      sucesso: true,
+      mensagem: `${entregasProcessadas.length} entregas importadas com sucesso!`,
+      total: entregasProcessadas.length,
+      entregas: data,
+    });
+  } catch (error) {
+    return reply.status(500).send({ sucesso: false, erro: "Falha ao processar lote de entregas." });
+  }
+}
+
 
 async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyReply) {
   const userId = (request as any).userId;
@@ -219,20 +313,32 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
     const pontosOtimizados = await otimizarSequencia(pontosEntrada);
 
     let novaOrdem = 1;
+    const updates: Promise<any>[] = [];
+
     for (const item of pontosOtimizados) {
       const entregaCorrespondente = entregasTipadas.find(
         (e) => (item.id && e.id === item.id) || e.rua === (item as any).endereco || e.rua === (item as any).enderecoOriginal,
       );
       if (entregaCorrespondente) {
-        await supabase.from("entregas").update({ ordem: novaOrdem }).eq("id", entregaCorrespondente.id).eq("entregador_id", userId);
-        novaOrdem++;
+        const ordemAtualizada = novaOrdem++;
+        updates.push(
+          supabase
+            .from("entregas")
+            .update({ ordem: ordemAtualizada })
+            .eq("id", entregaCorrespondente.id)
+            .eq("entregador_id", userId),
+        );
       }
+    }
+
+    if (updates.length > 0) {
+      await Promise.all(updates);
     }
 
     return reply.status(200).send({ sucesso: true, mensagem: "Rota otimizada com sucesso!" });
   } catch (err: unknown) {
     const mensagem = err instanceof Error ? err.message : "Falha ao otimizar a rota.";
-    return reply.status(200).send({ sucesso: false, erro: mensagem });
+    return reply.status(500).send({ sucesso: false, erro: mensagem });
   }
 }
 
@@ -274,7 +380,24 @@ async function historicoGeralHandler(request: FastifyRequest, reply: FastifyRepl
 async function concluirTodasEntregasHandler(request: FastifyRequest, reply: FastifyReply) {
   const userId = (request as any).userId;
   try {
-    const { idsConcluidos } = (request.body as { idsConcluidos?: string[] }) || {};
+    const { idsConcluidos, itensConcluidos } = (request.body as {
+      idsConcluidos?: string[];
+      itensConcluidos?: { id: string; status?: string; motivoInsucesso?: string; recebidoPor?: string }[];
+    }) || {};
+
+    if (itensConcluidos && Array.isArray(itensConcluidos) && itensConcluidos.length > 0) {
+      const updates = itensConcluidos.map((item) => {
+        const updatePayload: Record<string, any> = {
+          status: item.status || "entregue",
+          updated_at: new Date().toISOString(),
+        };
+        if (item.motivoInsucesso) updatePayload.referencia = `Motivo: ${item.motivoInsucesso}`;
+        if (item.recebidoPor) updatePayload.nome_destinatario = item.recebidoPor;
+        return supabase.from("entregas").update(updatePayload).eq("id", item.id).eq("entregador_id", userId);
+      });
+      await Promise.all(updates);
+      return reply.status(200).send({ sucesso: true, mensagem: "Entregas finalizadas com sucesso!" });
+    }
 
     let query = supabase.from("entregas").update({ status: "entregue", updated_at: new Date().toISOString() }).eq("entregador_id", userId); // Trava de segurança
 
@@ -302,6 +425,7 @@ export async function rotasRoutes(app: FastifyInstance) {
   app.addHook("preHandler", verificarToken);
 
   app.post("/api/v1/entregas", criarEntregaHandler);
+  app.post("/api/v1/entregas/lote", importarLoteHandler);
   app.get("/api/v1/rotas/atual", listarRotaAtualHandler);
   app.post("/api/v1/rotas/otimizar", otimizarRotaHandler);
 
@@ -336,9 +460,10 @@ export async function rotasRoutes(app: FastifyInstance) {
       const userId = (request as any).userId;
 
       try {
-        for (const item of paradas) {
-          await supabase.from("entregas").update({ ordem: item.ordem }).eq("id", item.id).eq("entregador_id", userId);
-        }
+        const updates = paradas.map((item) =>
+          supabase.from("entregas").update({ ordem: item.ordem }).eq("id", item.id).eq("entregador_id", userId),
+        );
+        await Promise.all(updates);
         return reply.status(200).send({ sucesso: true });
       } catch (error) {
         return reply.status(500).send({ sucesso: false, erro: "Erro ao reordenar." });
@@ -348,12 +473,25 @@ export async function rotasRoutes(app: FastifyInstance) {
 
   app.put(
     "/api/v1/entregas/:id/status",
-    async (request: FastifyRequest<{ Params: { id: string }; Body: { status: string } }>, reply: FastifyReply) => {
+    async (
+      request: FastifyRequest<{
+        Params: { id: string };
+        Body: { status: string; motivoInsucesso?: string; recebidoPor?: string };
+      }>,
+      reply: FastifyReply,
+    ) => {
       const { id } = request.params;
-      const { status } = request.body;
+      const { status, motivoInsucesso, recebidoPor } = request.body;
       const userId = (request as any).userId;
 
-      const { error } = await supabase.from("entregas").update({ status }).eq("id", id).eq("entregador_id", userId);
+      const updateData: Record<string, any> = {
+        status,
+        updated_at: new Date().toISOString(),
+      };
+      if (motivoInsucesso) updateData.referencia = `Motivo: ${motivoInsucesso}`;
+      if (recebidoPor) updateData.nome_destinatario = recebidoPor;
+
+      const { error } = await supabase.from("entregas").update(updateData).eq("id", id).eq("entregador_id", userId);
       if (error) return reply.status(500).send({ sucesso: false, erro: "Erro ao atualizar status." });
       return reply.status(200).send({ sucesso: true });
     },

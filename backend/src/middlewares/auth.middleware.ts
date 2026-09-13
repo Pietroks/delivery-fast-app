@@ -12,8 +12,11 @@ export async function verificarToken(request: FastifyRequest, reply: FastifyRepl
     return reply.status(401).send({ sucesso: false, erro: "Acesso negado. Token não fornecido." });
   }
 
-  // CORREÇÃO: Espaço após o Bearer
-  const token = authHeader.replace("Bearer ", "");
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!token) {
+    return reply.status(401).send({ sucesso: false, erro: "Acesso negado. Token não fornecido." });
+  }
+
   const { data, error } = await supabase.auth.getUser(token);
 
   if (error || !data.user) {
