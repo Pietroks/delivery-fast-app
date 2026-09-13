@@ -70,3 +70,22 @@ jest.mock("@react-navigation/native", () => {
     },
   };
 });
+
+// Mock do Expo Image Picker (Câmera e Galeria)
+jest.mock("expo-image-picker", () => ({
+  requestCameraPermissionsAsync: jest.fn(() => Promise.resolve({ status: "granted" })),
+  requestMediaLibraryPermissionsAsync: jest.fn(() => Promise.resolve({ status: "granted" })),
+  launchCameraAsync: jest.fn(() =>
+    Promise.resolve({
+      canceled: false,
+      assets: [{ uri: "file:///mock-camera-photo.jpg", base64: "mock-base64-data" }],
+    }),
+  ),
+  launchImageLibraryAsync: jest.fn(() =>
+    Promise.resolve({
+      canceled: false,
+      assets: [{ uri: "file:///mock-gallery-photo.jpg", base64: "mock-base64-data" }],
+    }),
+  ),
+  MediaTypeOptions: { Images: "Images" },
+}));

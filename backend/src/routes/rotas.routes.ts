@@ -485,7 +485,14 @@ export async function rotasRoutes(app: FastifyInstance) {
         });
       }
 
-      const { status, motivoInsucesso, recebidoPor } = validacao.data;
+      const {
+        status,
+        motivoInsucesso,
+        recebidoPor,
+        documentoRecebedor,
+        fotoComprovante,
+        assinaturaDigital,
+      } = validacao.data;
       const userId = (request as any).userId;
 
       const updateData: Record<string, any> = {
@@ -494,8 +501,31 @@ export async function rotasRoutes(app: FastifyInstance) {
       };
       if (motivoInsucesso) updateData.referencia = `Motivo: ${motivoInsucesso}`;
       if (recebidoPor) updateData.nome_destinatario = recebidoPor;
+      if (documentoRecebedor) updateData.documento_recebedor = documentoRecebedor;
+      if (fotoComprovante) updateData.foto_comprovante = fotoComprovante;
+      if (assinaturaDigital) updateData.assinatura_digital = assinaturaDigital;
 
-      const { error } = await supabase.from("entregas").update(updateData).eq("id", id).eq("entregador_id", userId);
+      let { error } = await supabase.from("entregas").update(updateData).eq("id", id).eq("entregador_id", userId);
+
+      // Fallback defensivo: se colunas específicas ainda não existirem no Supabase, consolida em 'referencia'
+      if (error && (fotoComprovante || assinaturaDigital || documentoRecebedor)) {
+        const dadosComprovante = {
+          recebidoPor,
+          documentoRecebedor,
+          fotoComprovante,
+          assinaturaDigital,
+          motivoInsucesso,
+        };
+        const fallbackData: Record<string, any> = {
+          status,
+          updated_at: new Date().toISOString(),
+          referencia: `Comprovante: ${JSON.stringify(dadosComprovante)}`,
+        };
+        if (recebidoPor) fallbackData.nome_destinatario = recebidoPor;
+        const resFallback = await supabase.from("entregas").update(fallbackData).eq("id", id).eq("entregador_id", userId);
+        error = resFallback.error;
+      }
+
       if (error) return reply.status(500).send({ sucesso: false, erro: "Erro ao atualizar status." });
       return reply.status(200).send({ sucesso: true });
     },

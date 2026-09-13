@@ -291,6 +291,33 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       expect(mockEq).toHaveBeenCalledWith("entregador_id", TEST_USER_ID);
     });
 
+    it("PUT /api/v1/entregas/:id/status - Deve atualizar status com comprovante (foto, documento e assinatura)", async () => {
+      mockEq.mockReturnValueOnce(mockQueryBuilder).mockResolvedValueOnce({ error: null });
+
+      const response = await app.inject({
+        method: "PUT",
+        url: "/api/v1/entregas/123/status",
+        payload: {
+          status: "entregue",
+          recebidoPor: "João Silva",
+          documentoRecebedor: "12.345.678-9",
+          fotoComprovante: "file:///foto_encomenda.jpg",
+          assinaturaDigital: "data:image/png;base64,assinatura",
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "entregue",
+          nome_destinatario: "João Silva",
+          documento_recebedor: "12.345.678-9",
+          foto_comprovante: "file:///foto_encomenda.jpg",
+          assinatura_digital: "data:image/png;base64,assinatura",
+        }),
+      );
+    });
+
     it("PUT /api/v1/entregas/:id/status - Deve rejeitar status inválido com erro 400", async () => {
       const response = await app.inject({
         method: "PUT",

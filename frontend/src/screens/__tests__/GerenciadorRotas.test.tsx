@@ -182,4 +182,37 @@ describe("Componente: GerenciadorRotas", () => {
 
     expect(mockOnRefresh).toHaveBeenCalledTimes(1);
   });
+
+  test("Deve abrir o modal de comprovante e salvar entrega com foto e recebedor", async () => {
+    (api.put as jest.Mock).mockResolvedValue({ data: { sucesso: true } });
+
+    const { getAllByText, getByText } = render(
+      <GerenciadorRotas
+        paradas={mockParadas}
+        onAtualizarLista={mockOnAtualizarLista}
+        onReordenarLocal={mockOnReordenarLocal}
+      />,
+    );
+
+    // Clica no botão 'Comprovante' da primeira parada
+    const botoesComprovante = getAllByText("Comprovante");
+    fireEvent.press(botoesComprovante[0]);
+
+    // O modal abre exibindo o título
+    expect(getByText("Comprovante de Entrega")).toBeTruthy();
+
+    // Clica em 'Concluir Rápido' dentro do modal
+    const botaoConcluirRapido = getByText("Concluir Rápido");
+    fireEvent.press(botaoConcluirRapido);
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith(
+        "/entregas/1/status",
+        expect.objectContaining({
+          status: "entregue",
+        }),
+      );
+      expect(mockOnAtualizarLista).toHaveBeenCalled();
+    });
+  });
 });

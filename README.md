@@ -153,10 +153,11 @@ Escaneie o QR Code com o aplicativo Expo Go no celular.
 - **[x] Otimização Rápida com OSRM**: Algoritmo do Caixeiro Viajante (TSP) com resolução de id único, atualizações concorrentes em paralelo via `Promise.all()` e cálculo de economia estimada.
 - **[x] Navegação Contínua Multi-Lotes**: Divisão inteligente da rota em lotes sequenciais de 10 paradas com seletor visual na Home para despacho progressivo no Google Maps.
 - **[x] Fechamento Flexível de Lote**: Modal interativo de finalização de rota, permitindo desmarcar pacotes ou sinalizar insucesso (`ausente`, `nao_localizado`, `recusado`).
+- **[x] Comprovante de Entrega (Foto & Assinatura Digital)**: Registro de comprovante na conclusão da entrega via câmera nativa (`expo-image-picker`), assinatura digital na tela com toque suave (`PanResponder`), nome de quem recebeu e documento (RG/CPF), com visualizador integrado no histórico.
 - **[x] Ações Rápidas de Contato**: Botões integrados nos cards ativos para ligação telefônica imediata (`tel:`) ou mensagem direta no WhatsApp pré-formatada.
-- **[x] Histórico e Métricas**: Resumo de entregas concluídas no dia e economia estimada em reais calculada com base no trajeto otimizado.
+- **[x] Histórico e Métricas**: Resumo de entregas concluídas no dia, economia estimada em reais calculada com base no trajeto otimizado e visualização detalhada de comprovantes.
 - **[x] Resiliência Offline & Limpeza Segura**: Cache automático de rotas locais via `AsyncStorage` com fallback para áreas sem sinal e limpeza completa no logout.
-- **[x] Cobertura Completa de Testes**: **57 testes automatizados** (20 backend, 37 frontend) assegurando integrações, componentes UI, lógicas de particionamento, parsers e permissões.
+- **[x] Cobertura Completa de Testes**: **62 testes automatizados** (21 backend, 41 frontend) assegurando integrações, componentes UI, lógicas de particionamento, comprovantes, parsers e permissões.
 
 ---
 

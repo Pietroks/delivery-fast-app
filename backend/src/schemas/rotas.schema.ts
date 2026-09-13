@@ -48,6 +48,9 @@ export const atualizarStatusSchema = z.object({
   status: statusEntregaEnum,
   motivoInsucesso: z.string().optional(),
   recebidoPor: z.string().optional(),
+  documentoRecebedor: z.string().optional(),
+  fotoComprovante: z.string().optional(),
+  assinaturaDigital: z.string().optional(),
 });
 
 export type AtualizarStatusInput = z.infer<typeof atualizarStatusSchema>;

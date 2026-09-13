@@ -5,6 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { Parada } from "../screens/HomeScreen";
 import { api } from "../services/api";
+import { ComprovanteEntregaModal, DadosComprovante } from "./ComprovanteEntregaModal";
 
 interface GerenciadorRotasProps {
   paradas: Parada[];
@@ -31,6 +32,8 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
   const [paradaEmEdicao, setParadaEmEdicao] = useState<Parada | null>(null);
   const [textoEditado, setTextoEditado] = useState("");
   const [carregandoAcao, setCarregandoAcao] = useState<EstadoCarregamento>("nenhum");
+  const [paradaComprovante, setParadaComprovante] = useState<Parada | null>(null);
+  const [carregandoComprovante, setCarregandoComprovante] = useState(false);
 
   useEffect(() => {
     setListaLocal(paradas);
@@ -159,6 +162,36 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
       }
     },
     [listaLocal, onAtualizarLista, onReordenarLocal, restaurarLista, hapticaSucesso, hapticaErro],
+  );
+
+  const handleAbrirComprovante = useCallback((item: Parada) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setParadaComprovante(item);
+  }, []);
+
+  const handleConfirmarComprovante = useCallback(
+    async (dados: DadosComprovante) => {
+      if (!paradaComprovante) return;
+      const item = paradaComprovante;
+      hapticaSucesso();
+      const novaLista = listaLocal.filter((p) => p.id !== item.id);
+      setListaLocal(novaLista);
+      onReordenarLocal?.(novaLista);
+      setCarregandoComprovante(true);
+
+      try {
+        await api.put(`/entregas/${item.id}/status`, dados);
+        setParadaComprovante(null);
+        onAtualizarLista();
+      } catch {
+        restaurarLista();
+        hapticaErro();
+        Alert.alert("Erro", "Não foi possível registrar o comprovante da entrega.");
+      } finally {
+        setCarregandoComprovante(false);
+      }
+    },
+    [paradaComprovante, listaLocal, onAtualizarLista, onReordenarLocal, restaurarLista, hapticaSucesso, hapticaErro],
   );
 
   const handleExcluir = useCallback(
@@ -292,6 +325,15 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
             {/* Linha Inferior: Ações Rápidas */}
             <View className="flex-row items-center gap-2 mt-2 pt-2 border-t border-[#1e293b]">
               <TouchableOpacity
+                onPress={() => handleAbrirComprovante(item)}
+                className="flex-row items-center bg-[#1e2e48] border border-sky-500/40 px-3 py-1.5 rounded-lg active:bg-sky-950"
+                accessibilityLabel="Comprovante de entrega"
+              >
+                <Ionicons name="camera-outline" size={13} color="#38bdf8" style={{ marginRight: 5 }} />
+                <Text className="text-sky-400 text-xs font-semibold">Comprovante</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 onPress={() => ligarParaCliente(item.telefone)}
                 className="flex-row items-center bg-[#1e2e48] border border-[#22334f] px-3 py-1.5 rounded-lg active:bg-blue-950"
                 accessibilityLabel="Ligar para o cliente"
@@ -353,6 +395,15 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Comprovante de Entrega */}
+      <ComprovanteEntregaModal
+        visivel={!!paradaComprovante}
+        parada={paradaComprovante}
+        carregando={carregandoComprovante}
+        onFechar={() => setParadaComprovante(null)}
+        onConfirmar={handleConfirmarComprovante}
+      />
     </View>
   );
 };
