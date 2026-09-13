@@ -54,4 +54,15 @@ describe("Utilitário: navigation (abrirRotaGoogleMaps e calcularLotes)", () => 
 
     expect(Linking.openURL).toHaveBeenCalledWith(expect.stringContaining("destination=Rua%20Teste%2C%2012"));
   });
+
+  test("Deve priorizar coordenadas lat,lon precisas quando disponíveis", async () => {
+    await abrirRotaGoogleMaps([
+      { rua: "Rua 1", lat: -28.298, lon: -54.263 },
+      { rua: "Rua 2", lat: -28.299, lon: -54.264 },
+    ]);
+
+    expect(Linking.openURL).toHaveBeenCalledWith(
+      expect.stringContaining("destination=-28.299%2C-54.264&travelmode=driving&waypoints=-28.298%2C-54.263"),
+    );
+  });
 });

@@ -4,11 +4,11 @@ import ws from "ws";
 
 dotenv.config();
 
-const supabaseUrl = process.env.SUPABASE_URL || "";
-const supabaseKey = process.env.SUPABASE_KEY || "";
+const supabaseUrl = process.env.SUPABASE_URL || "https://placeholder-project.supabase.co";
+const supabaseKey = process.env.SUPABASE_KEY || "placeholder-anon-key";
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error("⚠️ SUPABASE_URL ou SUPABASE_KEY não foram encontradas no arquivo .env");
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
+  console.warn("⚠️ AVISO: SUPABASE_URL ou SUPABASE_KEY não foram encontradas no arquivo .env. Configure seu .env para persistir dados.");
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {

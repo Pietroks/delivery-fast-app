@@ -11,6 +11,20 @@ function codificarEndereco(endereco?: string): string | null {
   return limpo && limpo.length > 0 ? encodeURIComponent(limpo) : null;
 }
 
+function formatarPontoMaps(parada: ParadaNavegacao): string | null {
+  if (
+    parada.lat !== undefined &&
+    parada.lon !== undefined &&
+    parada.lat !== 0 &&
+    parada.lon !== 0 &&
+    !isNaN(parada.lat) &&
+    !isNaN(parada.lon)
+  ) {
+    return `${parada.lat},${parada.lon}`;
+  }
+  return codificarEndereco(parada.rua);
+}
+
 /**
  * Abre o Google Maps traçando a rota partindo SEMPRE da localização atual do usuário (GPS)
  * cobrindo todas as entregas em sequência.
@@ -35,7 +49,7 @@ export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[], loteIndex:
   try {
     // 1 única entrega: Sua Localização Atual ➔ Entrega 1
     if (paradas.length === 1) {
-      const destinoCodificado = codificarEndereco(paradas[0].rua);
+      const destinoCodificado = formatarPontoMaps(paradas[0]);
       if (!destinoCodificado) return;
 
       const urlRotaDireta = `https://www.google.com/maps/dir/?api=1&destination=${destinoCodificado}&travelmode=driving`;
@@ -56,12 +70,12 @@ export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[], loteIndex:
     }
 
     // Destino final = Último endereço deste lote
-    const destinoFinal = codificarEndereco(paradasParaNavegar[paradasParaNavegar.length - 1].rua);
+    const destinoFinal = formatarPontoMaps(paradasParaNavegar[paradasParaNavegar.length - 1]);
 
     // Waypoints = Todos os endereços do primeiro até o penúltimo deste lote
     const waypoints = paradasParaNavegar
       .slice(0, -1)
-      .map((p) => codificarEndereco(p.rua))
+      .map((p) => formatarPontoMaps(p))
       .filter((p): p is string => p !== null)
       .join("|");
 

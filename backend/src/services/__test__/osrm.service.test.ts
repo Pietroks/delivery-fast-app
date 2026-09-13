@@ -51,6 +51,25 @@ describe("Serviço OSRM (osrm.service.ts)", () => {
       expect(mockedAxios.get).not.toHaveBeenCalled();
     });
 
+    it("Deve lidar com pontos com coordenadas zeradas sem quebrar a otimização", async () => {
+      mockedAxios.get.mockResolvedValueOnce({
+        data: {
+          code: "Ok",
+          waypoints: [{ waypoint_index: 0 }, { waypoint_index: 1 }],
+        },
+      });
+
+      const resultado = await otimizarSequencia([
+        { id: "1", lat: -28.1, lon: -54.1, enderecoOriginal: "Ponto A" },
+        { id: "2", lat: -28.2, lon: -54.2, enderecoOriginal: "Ponto B" },
+        { id: "3", lat: 0, lon: 0, enderecoOriginal: "Ponto Sem GPS" },
+      ]);
+
+      expect(resultado).toHaveLength(3);
+      expect(resultado[2].endereco).toBe("Ponto Sem GPS");
+      expect(resultado[2].ordem).toBe(3);
+    });
+
     it("Deve disparar erro se a API do OSRM não retornar 'Ok'", async () => {
       mockedAxios.get.mockResolvedValueOnce({
         data: { code: "NoTrips" },

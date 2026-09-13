@@ -276,6 +276,32 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       expect(response.statusCode).toBe(200);
       expect(mockEq).toHaveBeenCalledWith("entregador_id", TEST_USER_ID);
     });
+
+    it("PUT /api/v1/entregas/:id/status - Deve atualizar status válido com sucesso", async () => {
+      mockEq.mockReturnValueOnce(mockQueryBuilder).mockResolvedValueOnce({ error: null });
+
+      const response = await app.inject({
+        method: "PUT",
+        url: "/api/v1/entregas/123/status",
+        payload: { status: "entregue", recebidoPor: "Portaria" },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(mockEq).toHaveBeenCalledWith("id", "123");
+      expect(mockEq).toHaveBeenCalledWith("entregador_id", TEST_USER_ID);
+    });
+
+    it("PUT /api/v1/entregas/:id/status - Deve rejeitar status inválido com erro 400", async () => {
+      const response = await app.inject({
+        method: "PUT",
+        url: "/api/v1/entregas/123/status",
+        payload: { status: "status_inexistente" },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.sucesso).toBe(false);
+    });
   });
 
   describe("DELETE /api/v1/entregas/:id", () => {

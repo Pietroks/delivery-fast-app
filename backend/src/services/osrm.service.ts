@@ -15,20 +15,26 @@ export async function otimizarSequencia(pontos: PontoRota[]) {
     return [];
   }
 
-  if (pontos.length === 1) {
-    return [
-      {
-        ordem: 1,
-        id: pontos[0].id,
-        endereco: pontos[0].enderecoOriginal,
-        lat: pontos[0].lat,
-        lon: pontos[0].lon,
-      },
-    ];
+  // Filtra apenas pontos com coordenadas geográficas válidas (evita Null Island 0,0)
+  const pontosValidos = pontos.filter(
+    (p) => p.lat !== 0 && p.lon !== 0 && !isNaN(p.lat) && !isNaN(p.lon),
+  );
+  const pontosSemCoords = pontos.filter(
+    (p) => p.lat === 0 || p.lon === 0 || isNaN(p.lat) || isNaN(p.lon),
+  );
+
+  if (pontosValidos.length <= 1) {
+    return pontos.map((ponto, index) => ({
+      ordem: index + 1,
+      id: ponto.id,
+      endereco: ponto.enderecoOriginal,
+      lat: ponto.lat,
+      lon: ponto.lon,
+    }));
   }
 
   try {
-    const coordenadasString = pontos.map((ponto) => `${ponto.lon},${ponto.lat}`).join(";");
+    const coordenadasString = pontosValidos.map((ponto) => `${ponto.lon},${ponto.lat}`).join(";");
 
     const url = `https://router.project-osrm.org/trip/v1/driving/${coordenadasString}`;
 
@@ -52,7 +58,7 @@ export async function otimizarSequencia(pontos: PontoRota[]) {
     const pontosOrdenados = waypoints
       .map((wp: any, indexOriginal: number) => ({
         ordemCalculada: wp.waypoint_index,
-        pontoOriginal: pontos[indexOriginal],
+        pontoOriginal: pontosValidos[indexOriginal],
       }))
       .sort((a: any, b: any) => a.ordemCalculada - b.ordemCalculada)
       .map((item: any, index: number) => ({
@@ -62,6 +68,19 @@ export async function otimizarSequencia(pontos: PontoRota[]) {
         lat: item.pontoOriginal?.lat,
         lon: item.pontoOriginal?.lon,
       }));
+
+    if (pontosSemCoords.length > 0) {
+      let proximaOrdem = pontosOrdenados.length + 1;
+      for (const semCoord of pontosSemCoords) {
+        pontosOrdenados.push({
+          ordem: proximaOrdem++,
+          id: semCoord.id,
+          endereco: semCoord.enderecoOriginal,
+          lat: semCoord.lat,
+          lon: semCoord.lon,
+        });
+      }
+    }
 
     return pontosOrdenados;
   } catch (error) {

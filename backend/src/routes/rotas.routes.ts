@@ -9,6 +9,7 @@ import {
   otimizarRotaSchema,
   importarLoteSchema,
   ImportarLoteInput,
+  atualizarStatusSchema,
 } from "../schemas/rotas.schema";
 import { verificarToken } from "../middlewares/auth.middleware";
 
@@ -473,15 +474,18 @@ export async function rotasRoutes(app: FastifyInstance) {
 
   app.put(
     "/api/v1/entregas/:id/status",
-    async (
-      request: FastifyRequest<{
-        Params: { id: string };
-        Body: { status: string; motivoInsucesso?: string; recebidoPor?: string };
-      }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = request.params;
-      const { status, motivoInsucesso, recebidoPor } = request.body;
+      const validacao = atualizarStatusSchema.safeParse(request.body);
+
+      if (!validacao.success) {
+        return reply.status(400).send({
+          sucesso: false,
+          erro: validacao.error.issues[0]?.message || "Status de entrega inválido.",
+        });
+      }
+
+      const { status, motivoInsucesso, recebidoPor } = validacao.data;
       const userId = (request as any).userId;
 
       const updateData: Record<string, any> = {
