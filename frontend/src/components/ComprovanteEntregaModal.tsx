@@ -94,12 +94,15 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
       }
 
       const resultado = await ImagePicker.launchCameraAsync({
-        quality: 0.6,
+        quality: 0.4,
+        base64: true,
         allowsEditing: false,
       });
 
-      if (!resultado.canceled && resultado.assets?.[0]?.uri) {
-        setFotoUri(resultado.assets[0].uri);
+      if (!resultado.canceled && resultado.assets?.[0]) {
+        const asset = resultado.assets[0];
+        const uriFinal = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+        setFotoUri(uriFinal);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch {
@@ -116,12 +119,15 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
       }
 
       const resultado = await ImagePicker.launchImageLibraryAsync({
-        quality: 0.6,
+        quality: 0.4,
+        base64: true,
         allowsEditing: false,
       });
 
-      if (!resultado.canceled && resultado.assets?.[0]?.uri) {
-        setFotoUri(resultado.assets[0].uri);
+      if (!resultado.canceled && resultado.assets?.[0]) {
+        const asset = resultado.assets[0];
+        const uriFinal = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+        setFotoUri(uriFinal);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch {
@@ -133,12 +139,21 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
   const temComprovante = !!fotoUri || temAssinatura || !!documentoRecebedor.trim();
 
   const handleConfirmarComComprovante = async () => {
+    let assinaturaPayload: string | undefined;
+    if (temAssinatura) {
+      try {
+        assinaturaPayload = JSON.stringify(tracos);
+      } catch {
+        assinaturaPayload = `assinatura_${tracos.length}_tracos`;
+      }
+    }
+
     const dados: DadosComprovante = {
       status: "entregue",
       recebidoPor: recebidoPor.trim() || parada?.nomeDestinatario || undefined,
       documentoRecebedor: documentoRecebedor.trim() || undefined,
       fotoComprovante: fotoUri || undefined,
-      assinaturaDigital: temAssinatura ? `svg_paths:${tracos.length}_strokes` : undefined,
+      assinaturaDigital: assinaturaPayload,
     };
 
     await onConfirmar(dados);

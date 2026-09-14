@@ -62,7 +62,7 @@ describe("Utilitário: navigation (abrirRotaGoogleMaps e calcularLotes)", () => 
     ]);
 
     expect(Linking.openURL).toHaveBeenCalledWith(
-      expect.stringContaining("destination=-28.299%2C-54.264&travelmode=driving&waypoints=-28.298%2C-54.263"),
+      expect.stringContaining("destination=-28.299,-54.264&travelmode=driving&waypoints=-28.298,-54.263"),
     );
   });
 });

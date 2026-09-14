@@ -37,6 +37,9 @@ export const itemLoteSchema = z.object({
 
 export const importarLoteSchema = z.object({
   entregas: z.array(itemLoteSchema).min(1, "Envie pelo menos 1 entrega no lote."),
+  cidadePadrao: z.string().optional(),
+  latUsuario: z.number().optional(),
+  lonUsuario: z.number().optional(),
 });
 
 export type ImportarLoteInput = z.infer<typeof importarLoteSchema>;

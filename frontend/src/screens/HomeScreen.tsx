@@ -13,6 +13,7 @@ import { FinalizarRotaModal } from "../components/FinalizarRotaModal";
 import { ImportarLoteModal } from "../components/ImportarLoteModal";
 import { carregarRotasLocalmente, salvarRotasLocalmente } from "../services/storage";
 import { useAuth } from "../contexts/AuthContext";
+import { obterLocalizacaoECidadeRapida } from "../services/location";
 
 export interface Parada {
   id: string;
@@ -40,26 +41,28 @@ export default function HomeScreen() {
 
   const obterCoordenadasGPS = async (): Promise<{ lat?: number; lon?: number }> => {
     try {
-      const servicoAtivo = await Location.hasServicesEnabledAsync();
-      if (!servicoAtivo) return {};
-
-      const { status } = await Location.getForegroundPermissionsAsync();
-      if (status !== "granted") return {};
-
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      return {
-        lat: location.coords.latitude,
-        lon: location.coords.longitude,
-      };
+      const loc = await obterLocalizacaoECidadeRapida();
+      if (loc.lat && loc.lon) {
+        return { lat: loc.lat, lon: loc.lon };
+      }
+      return {};
     } catch {
       return {};
     }
   };
 
   const carregarEntregas = useCallback(async () => {
+    // Se ainda não temos rotas na memória, tenta carregar o cache local instantaneamente
+    if (rotas.length === 0) {
+      try {
+        const cacheLocal = await carregarRotasLocalmente();
+        if (cacheLocal.paradas && cacheLocal.paradas.length > 0) {
+          setRotas(cacheLocal.paradas);
+          setResumo(cacheLocal.resumo);
+        }
+      } catch {}
+    }
+
     setCarregando(true);
     try {
       const gps = await obterCoordenadasGPS();
@@ -85,7 +88,7 @@ export default function HomeScreen() {
     } finally {
       setCarregando(false);
     }
-  }, []);
+  }, [rotas.length]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -101,23 +104,23 @@ export default function HomeScreen() {
 
     setOtimizando(true);
     try {
-      const servicoAtivo = await Location.hasServicesEnabledAsync();
-      if (!servicoAtivo) {
-        Alert.alert("GPS Desativado", "Por favor, ative a localização do celular para otimizar o trajeto.");
-        setOtimizando(false);
-        return;
-      }
+      // Pega coordenadas instantaneamente do serviço compartilhado
+      const gpsRapido = await obterLocalizacaoECidadeRapida();
+      let latUsuario = gpsRapido.lat;
+      let lonUsuario = gpsRapido.lon;
 
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      let latUsuario: number | undefined;
-      let lonUsuario: number | undefined;
-
-      if (status === "granted") {
-        const location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        latUsuario = location.coords.latitude;
-        lonUsuario = location.coords.longitude;
+      if (!latUsuario || !lonUsuario) {
+        const servicoAtivo = await Location.hasServicesEnabledAsync();
+        if (servicoAtivo) {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === "granted") {
+            const loc = await Location.getLastKnownPositionAsync();
+            if (loc?.coords) {
+              latUsuario = loc.coords.latitude;
+              lonUsuario = loc.coords.longitude;
+            }
+          }
+        }
       }
 
       const response = await api.post("/rotas/otimizar", {
@@ -268,8 +271,8 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {carregando ? (
-          <View className="py-8 justify-center items-center">
+        {carregando && rotas.length === 0 ? (
+          <View className="py-8 justify-center items-center flex-1">
             <ActivityIndicator size="small" color="#22c55e" />
           </View>
         ) : (

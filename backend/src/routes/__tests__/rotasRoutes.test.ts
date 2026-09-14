@@ -17,7 +17,7 @@ const mockGte = vi.fn();
 const mockOrder = vi.fn();
 const mockIn = vi.fn();
 
-const mockQueryBuilder = {
+const mockQueryBuilder: any = {
   select: mockSelect,
   insert: mockInsert,
   update: mockUpdate,
@@ -28,6 +28,7 @@ const mockQueryBuilder = {
   order: mockOrder,
   single: mockSingle,
   in: mockIn,
+  then: (resolve: any) => resolve({ data: [], error: null }),
 };
 
 mockSelect.mockReturnValue(mockQueryBuilder);
@@ -187,7 +188,11 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
     });
 
     it("Deve continuar funcionando mesmo se a API do OSRM falhar", async () => {
-      mockOrder.mockResolvedValueOnce({ data: [], error: null });
+      const mockEntregasDB = [
+        { id: "1", ordem: 1, rua: "Rua A", lat: -28.298, lon: -54.263 },
+        { id: "2", ordem: 2, rua: "Rua B", lat: -28.299, lon: -54.264 },
+      ];
+      mockOrder.mockResolvedValueOnce({ data: mockEntregasDB, error: null });
       mockedAxios.get.mockRejectedValueOnce(new Error("OSRM indisponível"));
 
       const response = await app.inject({ method: "GET", url: "/api/v1/rotas/atual" });

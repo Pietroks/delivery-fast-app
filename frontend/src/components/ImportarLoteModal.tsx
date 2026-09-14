@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Modal,
   View,
@@ -12,6 +12,7 @@ import {
 import { Ionicons, Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { api } from "../services/api";
+import { getCidadeEmCache, obterLocalizacaoECidadeRapida } from "../services/location";
 
 interface ImportarLoteModalProps {
   visivel: boolean;
@@ -31,6 +32,8 @@ interface ItemImportado {
 /**
  * Parser inteligente de linhas de texto coladas de WhatsApp/Bloco de Notas.
  * Suporta formatos como:
+ * - Rua 31 de Dezembro, 193, Pippi.
+ * - Rua Gabriel Rodrigues de Almeida, 80, Aliança.
  * - Rua XV de Novembro, 1500 - Centro - João - 55999887766
  * - Av Brasil, 450, Bairro Operário
  * - Rua das Flores, 120
@@ -40,50 +43,65 @@ export function parseLinhasParaEntregas(textoBruto: string): ItemImportado[] {
 
   const linhas = textoBruto
     .split("\n")
-    .map((l) => l.trim())
+    .map((l) => l.trim().replace(/[.;]+$/, ""))
     .filter((l) => l.length > 2 && !l.startsWith("#") && !l.startsWith("//"));
 
   return linhas.map((linha) => {
     // Tenta quebrar por traços ou hífens para extrair partes
     const partesTraco = linha.split(/\s+-\s+/);
-    let enderecoBase = partesTraco[0].trim();
+    let enderecoBase = partesTraco[0].trim().replace(/[.,;]+$/, "");
     let bairro: string | undefined;
     let nomeDestinatario: string | undefined;
     let telefone: string | undefined;
 
     if (partesTraco.length > 1) {
-      // Se houver mais partes: [Endereço, Bairro?, Nome?, Telefone?]
       partesTraco.slice(1).forEach((parte) => {
-        const parteLimpa = parte.trim();
+        const parteLimpa = parte.trim().replace(/[.,;]+$/, "");
         const numeros = parteLimpa.replace(/\D/g, "");
         if (numeros.length >= 8 && numeros.length <= 13) {
           telefone = numeros;
         } else if (!bairro && (parteLimpa.toLowerCase().includes("centro") || parteLimpa.toLowerCase().includes("bairro"))) {
-          bairro = parteLimpa.replace(/^bairro\s+/i, "");
+          bairro = parteLimpa.replace(/^bairro\s+/i, "").replace(/[.,;]+$/, "").trim();
         } else if (!nomeDestinatario) {
           nomeDestinatario = parteLimpa;
         }
       });
     }
 
-    // Tenta separar rua e número na primeira parte (ex: "Rua A, 120" ou "Rua A 120")
+    // Tenta separar rua, número e bairro separados por vírgula
     let rua = enderecoBase;
     let numero: string | undefined;
 
-    const matchVirgula = enderecoBase.match(/^([^,]+),\s*(\d+[a-zA-Z]?)(.*)$/);
-    if (matchVirgula) {
-      rua = matchVirgula[1].trim();
-      numero = matchVirgula[2].trim();
-      if (matchVirgula[3]?.trim() && !bairro) {
-        bairro = matchVirgula[3].replace(/^[\s,-]+/, "").trim();
+    const matchVirgulas = enderecoBase.split(",").map((s) => s.trim().replace(/[.,;]+$/, ""));
+    if (matchVirgulas.length >= 2) {
+      rua = matchVirgulas[0];
+      const segundoPedaco = matchVirgulas[1];
+      const matchNum = segundoPedaco.match(/^(\d+[a-zA-Z]?)(.*)$/);
+      if (matchNum) {
+        numero = matchNum[1].trim();
+        if (matchNum[2]?.trim() && !bairro) {
+          bairro = matchNum[2].replace(/^[\s,-]+/, "").replace(/[.,;]+$/, "").trim();
+        }
+      } else {
+        numero = segundoPedaco;
+      }
+
+      if (matchVirgulas.length >= 3 && !bairro) {
+        bairro = matchVirgulas.slice(2).join(" ").replace(/[.,;]+$/, "").trim();
+      }
+    } else {
+      const matchEspacoNum = enderecoBase.match(/^(.+?)\s+(\d+[a-zA-Z]?)$/);
+      if (matchEspacoNum) {
+        rua = matchEspacoNum[1].trim();
+        numero = matchEspacoNum[2].trim();
       }
     }
 
     return {
-      rua,
-      numero,
-      bairro,
-      nomeDestinatario,
+      rua: rua.replace(/[.,;]+$/, "").trim(),
+      numero: numero ? numero.replace(/[.,;]+$/, "").trim() : undefined,
+      bairro: bairro ? bairro.replace(/[.,;]+$/, "").trim() : undefined,
+      nomeDestinatario: nomeDestinatario ? nomeDestinatario.replace(/[.,;]+$/, "").trim() : undefined,
       telefone,
     };
   });
@@ -95,7 +113,21 @@ export const ImportarLoteModal: React.FC<ImportarLoteModalProps> = ({
   onImportadoComSucesso,
 }) => {
   const [texto, setTexto] = useState("");
+  const [cidadePadrao, setCidadePadrao] = useState(getCidadeEmCache());
   const [carregando, setCarregando] = useState(false);
+
+  useEffect(() => {
+    if (visivel) {
+      const emCache = getCidadeEmCache();
+      if (emCache) {
+        setCidadePadrao(emCache);
+      } else {
+        obterLocalizacaoECidadeRapida().then((res) => {
+          if (res.cidade) setCidadePadrao(res.cidade);
+        });
+      }
+    }
+  }, [visivel]);
 
   const paradasDetectadas = useMemo(() => parseLinhasParaEntregas(texto), [texto]);
 
@@ -107,8 +139,17 @@ export const ImportarLoteModal: React.FC<ImportarLoteModalProps> = ({
 
     setCarregando(true);
     try {
+      const gpsRapido = await obterLocalizacaoECidadeRapida();
+      const entregasComCidade = paradasDetectadas.map((p) => ({
+        ...p,
+        cidade: p.cidade || cidadePadrao.trim() || undefined,
+      }));
+
       const response = await api.post("/entregas/lote", {
-        entregas: paradasDetectadas,
+        entregas: entregasComCidade,
+        cidadePadrao: cidadePadrao.trim() || undefined,
+        latUsuario: gpsRapido.lat,
+        lonUsuario: gpsRapido.lon,
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -146,6 +187,21 @@ export const ImportarLoteModal: React.FC<ImportarLoteModalProps> = ({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} className="my-3">
+            {/* Cidade de Referência para Geocodificação */}
+            <View className="mb-2.5 bg-[#0b1320] px-3 py-2 rounded-xl border border-[#22334f] flex-row items-center">
+              <Ionicons name="location-sharp" size={14} color="#22c55e" style={{ marginRight: 6 }} />
+              <Text className="text-[#94a3b8] text-[11px] mr-1.5 font-medium">Cidade:</Text>
+              <TextInput
+                value={cidadePadrao}
+                onChangeText={setCidadePadrao}
+                placeholder="Ex: Santo Ângelo - RS"
+                placeholderTextColor="#475569"
+                className="text-white text-xs font-semibold flex-1 py-0"
+                editable={!carregando}
+              />
+              <Text className="text-[#64748b] text-[10px] italic">via GPS</Text>
+            </View>
+
             <Text className="text-[#94a3b8] text-[11px] mb-2">
               Dica: Digite ou cole 1 endereço por linha. Se tiver número e nome, separe por vírgula ou traço.
             </Text>

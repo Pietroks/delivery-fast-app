@@ -34,6 +34,42 @@ interface ResumoHistorico {
   ultimaEntregaHora: string;
 }
 
+export function extrairDadosComprovante(item: EntregaConcluida | null) {
+  if (!item) return { foto: null, assinatura: null, doc: null, recebedor: null, motivo: null, tracosAssinatura: [] };
+
+  let foto = item.foto_comprovante || null;
+  let assinatura = item.assinatura_digital || null;
+  let doc = item.documento_recebedor || null;
+  let recebedor = item.nome_destinatario || item.nomeDestinatario || null;
+  let motivo: string | null = null;
+
+  if (item.referencia) {
+    if (item.referencia.includes("Comprovante:")) {
+      try {
+        const jsonParte = item.referencia.slice(item.referencia.indexOf("Comprovante:") + 12).trim();
+        const parsed = JSON.parse(jsonParte);
+        if (parsed.fotoComprovante && !foto) foto = parsed.fotoComprovante;
+        if (parsed.assinaturaDigital && !assinatura) assinatura = parsed.assinaturaDigital;
+        if (parsed.documentoRecebedor && !doc) doc = parsed.documentoRecebedor;
+        if (parsed.recebidoPor && !recebedor) recebedor = parsed.recebidoPor;
+        if (parsed.motivoInsucesso) motivo = parsed.motivoInsucesso;
+      } catch {}
+    } else if (item.referencia.startsWith("Motivo: ")) {
+      motivo = item.referencia.replace("Motivo: ", "");
+    }
+  }
+
+  // Tenta converter assinatura se foi salva como JSON de traços
+  let tracosAssinatura: { pontos: { x: number; y: number }[] }[] = [];
+  if (assinatura && assinatura.startsWith("[")) {
+    try {
+      tracosAssinatura = JSON.parse(assinatura);
+    } catch {}
+  }
+
+  return { foto, assinatura, doc, recebedor, motivo, tracosAssinatura };
+}
+
 export default function HistoricoScreen() {
   const navigation = useNavigation();
 
@@ -82,6 +118,8 @@ export default function HistoricoScreen() {
     const horaFormatada = data.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     return `${dataFormatada} às ${horaFormatada}`;
   };
+
+  const dadosModal = extrairDadosComprovante(comprovanteSelecionado);
 
   return (
     <SafeAreaView className="flex-1 bg-[#0b1320] px-4 pt-2">
@@ -137,9 +175,10 @@ export default function HistoricoScreen() {
             </View>
           }
           renderItem={({ item }) => {
-            const temFoto = !!item.foto_comprovante || item.referencia?.includes("fotoComprovante");
-            const temAssinatura = !!item.assinatura_digital || item.referencia?.includes("assinaturaDigital");
-            const nomeRecebedor = item.nome_destinatario || item.nomeDestinatario;
+            const dadosComp = extrairDadosComprovante(item);
+            const temFoto = !!dadosComp.foto;
+            const temAssinatura = !!dadosComp.assinatura;
+            const nomeRecebedor = dadosComp.recebedor;
 
             return (
               <TouchableOpacity
@@ -170,7 +209,7 @@ export default function HistoricoScreen() {
                 </View>
 
                 {/* Badges de Comprovante anexado */}
-                {(temFoto || temAssinatura || item.documento_recebedor) && (
+                {(temFoto || temAssinatura || dadosComp.doc) && (
                   <View className="flex-row items-center gap-1.5 mt-2 pt-2 border-t border-[#1e293b]">
                     {temFoto && (
                       <View className="flex-row items-center bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded-md">
@@ -186,9 +225,9 @@ export default function HistoricoScreen() {
                       </View>
                     )}
 
-                    {item.documento_recebedor && (
+                    {dadosComp.doc && (
                       <View className="flex-row items-center bg-[#1e2e48] px-2 py-0.5 rounded-md">
-                        <Text className="text-[#94a3b8] text-[10px]">Doc: {item.documento_recebedor}</Text>
+                        <Text className="text-[#94a3b8] text-[10px]">Doc: {dadosComp.doc}</Text>
                       </View>
                     )}
                   </View>
@@ -226,11 +265,11 @@ export default function HistoricoScreen() {
                 <View className="bg-[#0b1320] p-3 rounded-xl border border-[#22334f] mb-3">
                   <Text className="text-[#64748b] text-[10px] font-bold uppercase mb-1">Recebedor:</Text>
                   <Text className="text-emerald-400 text-xs font-bold">
-                    {comprovanteSelecionado.nome_destinatario || comprovanteSelecionado.nomeDestinatario || "Não informado"}
+                    {dadosModal.recebedor || "Não informado"}
                   </Text>
-                  {comprovanteSelecionado.documento_recebedor ? (
+                  {dadosModal.doc ? (
                     <Text className="text-[#94a3b8] text-[11px] mt-0.5">
-                      Documento: {comprovanteSelecionado.documento_recebedor}
+                      Documento: {dadosModal.doc}
                     </Text>
                   ) : null}
                   {comprovanteSelecionado.updated_at ? (
@@ -240,19 +279,43 @@ export default function HistoricoScreen() {
                   ) : null}
                 </View>
 
-                {comprovanteSelecionado.foto_comprovante ? (
+                {dadosModal.foto ? (
                   <View className="mb-3">
-                    <Text className="text-[#64748b] text-[10px] font-bold uppercase mb-1.5">Foto Registrada:</Text>
-                    <View className="w-full h-52 rounded-xl overflow-hidden border border-[#22334f] bg-black">
-                      <Image source={{ uri: comprovanteSelecionado.foto_comprovante }} className="w-full h-full" resizeMode="cover" />
+                    <Text className="text-[#64748b] text-[10px] font-bold uppercase mb-1.5">Foto do Pacote:</Text>
+                    <View className="w-full h-56 rounded-xl overflow-hidden border border-emerald-500/30 bg-black">
+                      <Image source={{ uri: dadosModal.foto }} className="w-full h-full" resizeMode="contain" />
                     </View>
                   </View>
                 ) : null}
 
-                {comprovanteSelecionado.assinatura_digital ? (
+                {dadosModal.tracosAssinatura.length > 0 ? (
+                  <View className="mb-3">
+                    <Text className="text-[#64748b] text-[10px] font-bold uppercase mb-1.5">Assinatura do Cliente:</Text>
+                    <View className="bg-[#0b1320] h-32 rounded-xl border border-[#22334f] relative overflow-hidden">
+                      {dadosModal.tracosAssinatura.map((traco, tIdx) => (
+                        <View key={tIdx}>
+                          {traco.pontos.map((p, pIdx) => (
+                            <View
+                              key={pIdx}
+                              style={{
+                                position: "absolute",
+                                left: p.x - 2,
+                                top: p.y - 2,
+                                width: 4,
+                                height: 4,
+                                borderRadius: 2,
+                                backgroundColor: "#22c55e",
+                              }}
+                            />
+                          ))}
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ) : dadosModal.assinatura ? (
                   <View className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl flex-row items-center gap-2 mb-3">
                     <Feather name="check-circle" size={16} color="#22c55e" />
-                    <Text className="text-emerald-400 text-xs font-semibold">Assinatura digital coletada na tela</Text>
+                    <Text className="text-emerald-400 text-xs font-semibold">Assinatura digital autenticada na tela</Text>
                   </View>
                 ) : null}
               </ScrollView>

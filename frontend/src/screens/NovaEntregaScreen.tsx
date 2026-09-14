@@ -2,9 +2,10 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { ActivityIndicator, Alert, ScrollView, StatusBar, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { api } from "../services/api";
 import * as Location from "expo-location";
+import { obterLocalizacaoECidadeRapida, setCidadeEmCache, getCidadeEmCache } from "../services/location";
 
 interface NovaEntregaScreenProps {
   onVoltar?: () => void;
@@ -111,6 +112,7 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
   const [carregando, setCarregando] = useState(false);
   const [cidadeDetectadaViaGPS, setCidadeDetectadaViaGPS] = useState(false);
 
+  const coordsGpsRef = useRef<{ lat?: number; lon?: number }>({});
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -133,29 +135,40 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
     setTelefoneTouched(false);
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === "granted") {
-          const location = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
+  // Executa toda vez que a tela ganha foco (seja via aba ou via botão + da Stack)
+  useFocusEffect(
+    useCallback(() => {
+      let cancelado = false;
 
-          const [endereco] = await Location.reverseGeocodeAsync({
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-          });
+      // Se já temos uma cidade em cache global, preenche de imediato
+      const cidadeCache = getCidadeEmCache();
+      if (cidadeCache && !cidade) {
+        setCidade(cidadeCache);
+        setCidadeDetectadaViaGPS(true);
+      }
 
-          if (endereco?.city || endereco?.subregion) {
-            const nomeCidade = endereco.city || endereco.subregion || "";
-            setCidade(nomeCidade);
-            setCidadeDetectadaViaGPS(true);
+      (async () => {
+        try {
+          const resultado = await obterLocalizacaoECidadeRapida();
+          if (cancelado) return;
+
+          if (resultado.lat && resultado.lon) {
+            coordsGpsRef.current = { lat: resultado.lat, lon: resultado.lon };
           }
-        }
-      } catch {}
-    })();
-  }, []);
+
+          if (resultado.cidade && (!cidade || !cidadeDetectadaViaGPS)) {
+            setCidade(resultado.cidade);
+            setCidadeDetectadaViaGPS(true);
+            setCidadeEmCache(resultado.cidade);
+          }
+        } catch {}
+      })();
+
+      return () => {
+        cancelado = true;
+      };
+    }, [cidade, cidadeDetectadaViaGPS]),
+  );
 
   const handleVoltarAction = useCallback(() => {
     if (onVoltar) onVoltar();
@@ -195,6 +208,9 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
   }, [cep]);
 
   const handleSalvarEntrega = useCallback(async () => {
+    // 1. Trava síncrona imediata contra cliques múltiplos no botão
+    if (carregando) return;
+
     if (!rua.trim()) {
       Alert.alert("Atenção", "Informe a rua / logradouro.");
       return;
@@ -208,22 +224,24 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
       return;
     }
 
-    let latUsuario: number | undefined;
-    let lonUsuario: number | undefined;
-
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === "granted") {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        latUsuario = loc.coords.latitude;
-        lonUsuario = loc.coords.longitude;
-      }
-    } catch {}
-
-    const enderecoFormatadoExato = `${rua.trim()}, ${numero.trim()}${bairro.trim() ? ` - ${bairro.trim()}` : ""}${cidade.trim() ? `, ${cidade.trim()}` : ""}${cep.trim() ? ` - CEP: ${cep.trim()}` : ""}`;
-
     setCarregando(true);
+
     try {
+      let latUsuario = coordsGpsRef.current.lat;
+      let lonUsuario = coordsGpsRef.current.lon;
+
+      if (!latUsuario || !lonUsuario) {
+        const rapida = await obterLocalizacaoECidadeRapida();
+        latUsuario = rapida.lat;
+        lonUsuario = rapida.lon;
+      }
+
+      if (cidade.trim()) {
+        setCidadeEmCache(cidade.trim());
+      }
+
+      const enderecoFormatadoExato = `${rua.trim()}, ${numero.trim()}${bairro.trim() ? ` - ${bairro.trim()}` : ""}${cidade.trim() ? `, ${cidade.trim()}` : ""}${cep.trim() ? ` - CEP: ${cep.trim()}` : ""}`;
+
       await api.post("/entregas", {
         endereco: enderecoFormatadoExato,
         rua: rua.trim(),
@@ -251,21 +269,24 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
       }
       Alert.alert("Erro", mensagem);
     } finally {
-      setCarregando(false);
+      if (mountedRef.current) {
+        setCarregando(false);
+      }
     }
   }, [
+    carregando,
     rua,
     numero,
+    nomeDestinatario,
     bairro,
     cidade,
     cep,
     referencia,
-    nomeDestinatario,
     telefone,
     adicionarARotaAtual,
+    limparFormulario,
     onEntregaSalva,
     handleVoltarAction,
-    limparFormulario,
   ]);
 
   return (

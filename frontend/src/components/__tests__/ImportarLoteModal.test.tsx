@@ -1,4 +1,4 @@
-﻿import { parseLinhasParaEntregas } from "../ImportarLoteModal";
+import { parseLinhasParaEntregas } from "../ImportarLoteModal";
 
 describe("Componente: ImportarLoteModal (Parser de Linhas)", () => {
   test("Deve retornar array vazio se o texto estiver vazio ou apenas espaços", () => {
@@ -29,5 +29,19 @@ describe("Componente: ImportarLoteModal (Parser de Linhas)", () => {
     expect(resultado[1].rua).toBe("Av Brasil");
     expect(resultado[1].numero).toBe("450");
     expect(resultado[1].nomeDestinatario).toBe("Maria Souza");
+  });
+
+  test("Deve extrair endereços com vírgulas e pontuação trailing (ex: rua 31 de dezembro, 193, pippi.)", () => {
+    const texto = `rua 31 de dezembro, 193, pippi.\nrua gabriel rodrigues de almeida, 80, aliança.`;
+    const resultado = parseLinhasParaEntregas(texto);
+
+    expect(resultado).toHaveLength(2);
+    expect(resultado[0].rua).toBe("rua 31 de dezembro");
+    expect(resultado[0].numero).toBe("193");
+    expect(resultado[0].bairro).toBe("pippi");
+
+    expect(resultado[1].rua).toBe("rua gabriel rodrigues de almeida");
+    expect(resultado[1].numero).toBe("80");
+    expect(resultado[1].bairro).toBe("aliança");
   });
 });

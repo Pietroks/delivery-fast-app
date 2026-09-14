@@ -10,8 +10,15 @@ import { abrirRotaGoogleMaps } from "../../utils/navigation";
 jest.mock("expo-location", () => ({
   hasServicesEnabledAsync: jest.fn(() => Promise.resolve(true)),
   requestForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: "granted", granted: true })),
-  // Mock adicionado para a verificação silenciosa não cair no catch
   getForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: "granted", granted: true })),
+  getLastKnownPositionAsync: jest.fn(() =>
+    Promise.resolve({
+      coords: {
+        latitude: -28.298,
+        longitude: -54.263,
+      },
+    }),
+  ),
   getCurrentPositionAsync: jest.fn(() =>
     Promise.resolve({
       coords: {
@@ -20,8 +27,13 @@ jest.mock("expo-location", () => ({
       },
     }),
   ),
+  reverseGeocodeAsync: jest.fn(() => Promise.resolve([{ city: "Santo Ângelo" }])),
   Accuracy: {
+    Lowest: 1,
+    Low: 2,
     Balanced: 3,
+    High: 4,
+    Highest: 5,
   },
 }));
 
@@ -40,9 +52,13 @@ jest.mock("../../services/api", () => ({
   },
 }));
 
-jest.mock("../../utils/navigation", () => ({
-  abrirRotaGoogleMaps: jest.fn(),
-}));
+jest.mock("../../utils/navigation", () => {
+  const actualNav = jest.requireActual("../../utils/navigation");
+  return {
+    ...actualNav,
+    abrirRotaGoogleMaps: jest.fn(),
+  };
+});
 
 jest.mock("../../services/storage", () => ({
   carregarRotasLocalmente: jest.fn(() => Promise.resolve({ paradas: [], resumo: null })),

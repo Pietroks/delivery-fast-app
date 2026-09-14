@@ -1,3 +1,10 @@
+// Substitui os getters do Expo Winter Runtime pelo fetch do Node / Jest
+const noopFetch = jest.fn();
+Object.defineProperty(global, "fetch", { value: noopFetch, writable: true, configurable: true });
+Object.defineProperty(global, "Response", { value: class Response {}, writable: true, configurable: true });
+Object.defineProperty(global, "Request", { value: class Request {}, writable: true, configurable: true });
+Object.defineProperty(global, "Headers", { value: class Headers {}, writable: true, configurable: true });
+
 import "@testing-library/jest-native/extend-expect";
 
 // Mock do NativeWind
@@ -22,6 +29,21 @@ jest.mock("@react-native-async-storage/async-storage", () => require("@react-nat
 // Mock do Expo Location (GPS)
 jest.mock("expo-location", () => ({
   requestForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: "granted" })),
+  getForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: "granted" })),
+  getLastKnownPositionAsync: jest.fn(() =>
+    Promise.resolve({
+      coords: {
+        latitude: -28.298,
+        longitude: -54.263,
+        altitude: 0,
+        accuracy: 5,
+        altitudeAccuracy: 5,
+        heading: 0,
+        speed: 0,
+      },
+      timestamp: Date.now(),
+    }),
+  ),
   getCurrentPositionAsync: jest.fn(() =>
     Promise.resolve({
       coords: {
@@ -38,6 +60,14 @@ jest.mock("expo-location", () => ({
   ),
   hasServicesEnabledAsync: jest.fn(() => Promise.resolve(true)),
   reverseGeocodeAsync: jest.fn(() => Promise.resolve([{ city: "Santo Ângelo" }])),
+  Accuracy: {
+    Lowest: 1,
+    Low: 2,
+    Balanced: 3,
+    High: 4,
+    Highest: 5,
+    BestForNavigation: 6,
+  },
 }));
 
 // Mock do Expo Haptics (Vibração)
