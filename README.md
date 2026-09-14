@@ -1,163 +1,152 @@
-O arquivo `README.md` foi atualizado para refletir as versões exatas das dependências do `package.json` (como Fastify 5, React 19, Expo 54), a inclusão de bibliotecas de validação (Zod) e a nova cobertura de 34 testes da aplicação.
+# 🚚 Delivery Fast - Otimizador de Rotas e Gestão de Entregas
 
-````markdown
-# 🚚 Delivery Fast - Otimizador de Rotas de Entrega
+[![Testes Automatizados](https://img.shields.io/badge/Testes-76%20Aprovados%20(100%25)-22c55e?style=for-the-badge&logo=vitest&logoColor=white)](https://github.com/Pietroks/delivery-fast-app)
+[![Expo SDK 57](https://img.shields.io/badge/Expo-SDK%2057-000000?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev)
+[![React Native 0.83](https://img.shields.io/badge/React%20Native-0.83-61dafb?style=for-the-badge&logo=react&logoColor=black)](https://reactnative.dev)
+[![Fastify 5](https://img.shields.io/badge/Fastify-5.11-000000?style=for-the-badge&logo=fastify&logoColor=white)](https://fastify.io)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ecf8e?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
 
-Aplicação mobile completa desenvolvida para entregadores otimizarem rotas de entrega dinamicamente a partir da sua **localização atual via GPS**. O sistema combina o algoritmo de resolução do problema do caixeiro-viajante do **OSRM** para reordenação com a precisão porta-a-porta do **Google Maps** para navegação final.
+Aplicativo mobile completo desenvolvido para entregadores e pequenos comércios otimizarem rotas de entrega dinamicamente a partir do **GPS em tempo real**. Combina o algoritmo do Caixeiro Viajante do **OSRM** com a navegação porta a porta do **Google Maps**, além de comprovação digital de entregas (**foto e assinatura na tela**) e **relatório financeiro de fechamento de turno** com envio direto no WhatsApp do lojista.
 
 ---
 
-## 🚀 Tecnologias Utilizadas
+## 🌟 Principais Funcionalidades
+
+- **[x] Autenticação e Multi-Tenancy**: Login e cadastro com isolamento rigoroso de entregadores via Supabase Auth e Row Level Security (RLS).
+- **[x] Importação em Massa ("Colar Lista")**: Parser inteligente com sanitização de pontuações finais (`pippi.` -> `pippi`) que aceita listas coladas do WhatsApp ou e-mail.
+- **[x] Geocodificação Local Precisa**: Integração com BrasilAPI para CEPs e Nominatim com *bounding box* viário (~45 km de raio ao redor do GPS do entregador), impedindo que ruas homônimas em outros estados sejam selecionadas.
+- **[x] Otimização Inteligente ($P_0$ via GPS)**: Otimiza o trajeto viário pelo algoritmo do Caixeiro Viajante do OSRM partindo sempre da localização física real do entregador.
+- **[x] Navegação Multi-Lotes para Google Maps**: Contorna a limitação de paradas do Google Maps particionando automaticamente rotas longas em lotes sequenciais de até 10 paradas.
+- **[x] Comprovante de Entrega Digital (POD)**: Registro fotográfico da encomenda entregue via câmera nativa (`expo-image-picker`) e assinatura digital com toque suave na tela (`PanResponder`), com nome e documento do recebedor.
+- **[x] Visualizador de Comprovantes no Histórico**: Modal para consultar a qualquer momento as fotos em alta resolução e assinaturas vetoriais das entregas concluídas.
+- **[x] Relatório de Fechamento de Turno & Envio no WhatsApp**:
+  - Resumo financeiro diário com taxa por entrega configurável, diária fixa, valor por km e chave PIX salvas no aparelho (`AsyncStorage`).
+  - Métricas operacionais consolidadas: entregas concluídas, devoluções com motivo, quilômetros rodados e tempo total em rota.
+  - Envio instantâneo formatado com 1 clique para o WhatsApp do lojista/restaurante.
+- **[x] Resiliência Offline e Cache Ultra-Rápido**: Cache de rotas e GPS em memória com resposta em `<5ms`, eliminando travamentos de interface.
+- **[x] 76 Testes Automatizados**: 100% de sucesso em testes de frontend (Jest) e backend (Vitest).
+
+---
+
+## 🛠️ Tecnologias Utilizadas
 
 ### **Mobile (Frontend)**
+- **React Native (`0.83.0`)** com **React 19 (`19.1.0`)**
+- **Expo SDK (`~57.0.0`)**
+- **TypeScript (`~5.9.2`)**
+- **NativeWind (`^4.2.6`) / TailwindCSS (`^3.4.19`)** (Dark mode nativo)
+- **React Navigation 7** (Bottom Tabs e Native Stack)
+- **Expo Location (`~19.0.0`)** (Leitura rápida de GPS e geocodificação reversa)
+- **Expo Image Picker (`~17.0.0`)** (Captura de fotos de comprovante)
+- **AsyncStorage (`2.2.0`)** (Persistência local de cache e taxas)
+- **Jest (`~29.7.0`) & React Native Testing Library** (50 testes automatizados)
 
-- **React Native (0.81.5)** com **Expo (~54.0.35)**
-- **TypeScript (~5.9.2)**
-- **TailwindCSS (^3.4.19) / NativeWind (^4.2.6)** (Estilização utilitária)
-- **React Navigation 7** (Gerenciamento de fluxo de telas e pilhas de navegação)
-- **Expo Location** (Captura de GPS do entregador e geocodificação automática)
-- **Expo Haptics** (Feedbacks táteis para interações de UI)
-- **Expo Linking** (Deep linking com discador, WhatsApp e Google Maps)
-- **Axios** (Cliente HTTP para API REST)
-- **AsyncStorage** (Persistência e cache local para resiliência offline)
-- **Jest & React Native Testing Library** (Testes automatizados de componentes e fluxos)
-
-### **Backend**
-
-- **Node.js** com **Fastify (^5.11.2)**
-- **TypeScript (^7.0.2)** com **TSX**
-- **Supabase JS (^2.109.0)** (Banco de dados relacional PostgreSQL e persistência de dados)
-- **Zod (^4.4.3)** (Validação de schemas e tipagem estática de payloads)
-- **OSRM (Open Source Routing Machine)** (Trip API para otimização de percurso com base no `waypoint_index`)
-- **Nominatim / OpenStreetMap** (Geocodificação de endereços no momento do cadastro com suporte a CEP)
-- **Vitest (^4.1.11)** (Suíte completa de testes unitários e de integração de rotas e serviços)
+### **Backend (API REST)**
+- **Node.js** com **Fastify (`^5.11.2`)**
+- **TypeScript (`^7.0.2`)** com **TSX**
+- **Supabase JS (`^2.109.0`)** (PostgreSQL com RLS)
+- **Zod (`^4.4.3`)** (Validação rigorosa de contratos e payloads)
+- **OSRM (Open Source Routing Machine)** (Trip API para otimização de percurso)
+- **BrasilAPI & Nominatim** (Geocodificação estruturada sem custos de APIs pagas)
+- **Vitest (`^4.1.11`)** (26 testes automatizados)
 
 ---
 
 ## 📁 Estrutura do Projeto
 
-O projeto é estruturado em formato **monorepo**:
-
 ```text
-delivery_fast_app/
+delivery-fast-app/
 ├── backend/                    # Servidor Fastify & Integrações
 │   ├── src/
-│   │   ├── routes/             # Rotas Fastify (CRUD, otimização e conclusão em lote)
+│   │   ├── routes/             # Rotas Fastify (CRUD, Otimização, Fechamento de Turno)
 │   │   │   └── __tests__/      # Testes de integração de endpoints
+│   │   ├── schemas/            # Validações Zod (rotas.schema.ts)
 │   │   └── services/           # Supabase, OSRM Service e Geocodificação
-│   │       └── __tests__/      # Testes unitários do algoritmo OSRM
 │   └── package.json
-├── frontend/                   # Aplicativo React Native (Expo)
+├── frontend/                   # Aplicativo Mobile React Native (Expo)
 │   ├── src/
-│   │   ├── components/         # GerenciadorRotas, ResumoRotaCard, FinalizarRotaModal
-│   │   ├── navigation/         # Configuração de rotas e Stacks do React Navigation
-│   │   ├── screens/            # HomeScreen, NovaEntregaScreen e HistoricoScreen
-│   │   │   └── __tests__/      # Testes automatizados de telas e componentes
-│   │   ├── services/           # Cliente Axios e camada de Storage local
-│   │   └── utils/              # Lógica de lotes para Google Maps e utilitários
+│   │   ├── components/         # FechamentoTurnoModal, ComprovanteEntregaModal, GerenciadorRotas, etc.
+│   │   │   └── __tests__/      # Testes unitários de componentes
+│   │   ├── screens/            # HomeScreen, NovaEntregaScreen, HistoricoScreen, Login, Cadastro
+│   │   │   └── __tests__/      # Testes completos de telas e fluxos
+│   │   ├── services/           # Axios API, Cache de Storage e Serviço Rápido de Location
+│   │   └── utils/              # Particionamento de lotes do Google Maps
 │   └── package.json
-├── .gitignore
+├── docs/                       # Documentação técnica e comercial completa
+│   └── DOCUMENTACAO_COMPLETA.md
 └── README.md
 ```
-````
-
-## 🧠 Arquitetura de Otimização e Navegação
-
-1. **Geocodificação Inteligente no Cadastro**:
-   Ao cadastrar uma parada, a cidade é pré-preenchida automaticamente via GPS do celular. O backend geocodifica via Nominatim priorizando o formato estruturado e fazendo fallbacks automáticos. Latitude e longitude exatas são salvas diretamente no Supabase.
-2. **Otimização Instantânea (OSRM)**:
-   O botão "Otimizar Rota" envia a localização em tempo real do entregador e consome os dados já armazenados no banco. A Trip API do OSRM reorganiza a sequência lógica fazendo o traçado da malha viária real.
-3. **Navegação Porta a Porta (Google Maps)**:
-   Ao clicar em "Iniciar no GPS", o aplicativo despacha as paradas particionadas em lotes inteligentes (limite nativo de 10 paradas) para o Google Maps, iniciando sempre do GPS atual do motoboy.
 
 ---
 
 ## ⚡ Como Executar o Projeto
 
-**Pré-requisitos:**
+### Pré-requisitos
+- **Node.js** (v18 ou v20 recomendados)
+- **Git**
+- Celular físico com o aplicativo **Expo Go** (Android ou iOS)
 
-- Node.js (versão 18 ou superior)
-- Celular físico com o aplicativo Expo Go (ou simulador Android/iOS)
-- Projeto criado no Supabase
-
-### 1. Configurando o Backend
-
-Acesse a pasta do backend:
+### 1. Iniciar o Servidor Backend
 
 ```bash
 cd backend
 npm install
-
 ```
 
-Crie um arquivo `.env` configurando sua conexão do Supabase (use o modelo `.env.example`):
-
+Crie o arquivo `.env` baseado no `.env.example`:
 ```env
 PORT=3000
 SUPABASE_URL=https://seu-projeto.supabase.co
 SUPABASE_KEY=sua-chave-service-role-ou-anon
 ```
 
-Execute os testes automatizados do backend (18 testes no Vitest):
-
+Execute os testes automatizados do backend:
 ```bash
 npm test
 ```
+*(Resultado esperado: 26 testes aprovados no Vitest)*
 
-Inicie o servidor Fastify:
-
+Inicie o servidor:
 ```bash
 npm run dev
 ```
 
-### 2. Configurando o Frontend
+---
 
-Em outro terminal, acesse a pasta do frontend:
+### 2. Iniciar o Aplicativo Mobile (Frontend)
 
+Em outro terminal:
 ```bash
 cd frontend
 npm install
 ```
 
-Crie um arquivo `.env` na raiz do frontend (use o modelo `.env.example`):
-
+Crie o arquivo `.env` baseado no `.env.example`:
 ```env
 EXPO_PUBLIC_API_URL=http://SEU_IP_LOCAL:3000/api/v1
 EXPO_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anon-do-supabase
 ```
 
-Execute os testes automatizados do aplicativo (32 testes no Jest):
-
+Execute os testes automatizados do frontend:
 ```bash
 npm test
 ```
+*(Resultado esperado: 50 testes em 10 suítes aprovados no Jest)*
 
 Inicie o Expo limpando o cache:
-
 ```bash
 npx expo start -c
 ```
 
-Escaneie o QR Code com o aplicativo Expo Go no celular.
+Abra o aplicativo **Expo Go** no celular e escaneie o QR Code exibido no terminal.
 
 ---
 
-## 📌 Principais Funcionalidades
+## 📄 Documentação Completa
 
-- **[x] Autenticação e Multi-Tenancy**: Sistema completo de login, cadastro e controle de acesso com Supabase Auth e Row Level Security (RLS), isolando os dados de cada entregador.
-- **[x] Importação em Massa (Colar Lista)**: Modal com parser inteligente para colar mensagens com vários endereços (WhatsApp/bloco de notas), extraindo logradouro, número, bairro, destinatário e telefone.
-- **[x] Enriquecimento Nacional via BrasilAPI**: Consulta oficial e precisa de CEP no Brasil antes do fallback geográfico para o Nominatim.
-- **[x] Localização Dinâmica via GPS**: O trajeto base para cálculos e deslocamentos sempre parte do ponto físico em que o entregador se encontra no momento ($P_0$ dinâmico).
-- **[x] Cadastro Inteligente**: Detecção automática do município via GPS e suporte a CEP com consulta prioritária.
-- **[x] Otimização Rápida com OSRM**: Algoritmo do Caixeiro Viajante (TSP) com resolução de id único, atualizações concorrentes em paralelo via `Promise.all()` e cálculo de economia estimada.
-- **[x] Navegação Contínua Multi-Lotes**: Divisão inteligente da rota em lotes sequenciais de 10 paradas com seletor visual na Home para despacho progressivo no Google Maps.
-- **[x] Fechamento Flexível de Lote**: Modal interativo de finalização de rota, permitindo desmarcar pacotes ou sinalizar insucesso (`ausente`, `nao_localizado`, `recusado`).
-- **[x] Comprovante de Entrega (Foto & Assinatura Digital)**: Registro de comprovante na conclusão da entrega via câmera nativa (`expo-image-picker`), assinatura digital na tela com toque suave (`PanResponder`), nome de quem recebeu e documento (RG/CPF), com visualizador integrado no histórico.
-- **[x] Ações Rápidas de Contato**: Botões integrados nos cards ativos para ligação telefônica imediata (`tel:`) ou mensagem direta no WhatsApp pré-formatada.
-- **[x] Histórico e Métricas**: Resumo de entregas concluídas no dia, economia estimada em reais calculada com base no trajeto otimizado e visualização detalhada de comprovantes.
-- **[x] Resiliência Offline & Limpeza Segura**: Cache automático de rotas locais via `AsyncStorage` com fallback para áreas sem sinal e limpeza completa no logout.
-- **[x] Cobertura Completa de Testes**: **62 testes automatizados** (21 backend, 41 frontend) assegurando integrações, componentes UI, lógicas de particionamento, comprovantes, parsers e permissões.
+Para detalhes aprofundados sobre arquitetura, modelo comercial de vendas, documentação de todos os endpoints e guia operacional do entregador, consulte:
+👉 [**Documentação Completa do Delivery Fast (`docs/DOCUMENTACAO_COMPLETA.md`)**](docs/DOCUMENTACAO_COMPLETA.md)
 
 ---
 
