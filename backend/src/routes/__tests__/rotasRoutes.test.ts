@@ -14,6 +14,7 @@ const mockDelete = vi.fn();
 const mockOr = vi.fn();
 const mockEq = vi.fn();
 const mockGte = vi.fn();
+const mockLte = vi.fn();
 const mockOrder = vi.fn();
 const mockIn = vi.fn();
 
@@ -25,6 +26,7 @@ const mockQueryBuilder: any = {
   or: mockOr,
   eq: mockEq,
   gte: mockGte,
+  lte: mockLte,
   order: mockOrder,
   single: mockSingle,
   in: mockIn,
@@ -38,6 +40,7 @@ mockDelete.mockReturnValue(mockQueryBuilder);
 mockOr.mockReturnValue(mockQueryBuilder);
 mockEq.mockReturnValue(mockQueryBuilder);
 mockGte.mockReturnValue(mockQueryBuilder);
+mockLte.mockReturnValue(mockQueryBuilder);
 mockOrder.mockReturnValue(mockQueryBuilder);
 mockIn.mockReturnValue(mockQueryBuilder);
 
@@ -61,6 +64,7 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
     mockOr.mockReturnValue(mockQueryBuilder);
     mockEq.mockReturnValue(mockQueryBuilder);
     mockGte.mockReturnValue(mockQueryBuilder);
+    mockLte.mockReturnValue(mockQueryBuilder);
     mockOrder.mockReturnValue(mockQueryBuilder);
     mockIn.mockReturnValue(mockQueryBuilder);
 
@@ -349,6 +353,76 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       expect(response.statusCode).toBe(200);
       expect(mockEq).toHaveBeenCalledWith("id", "123");
       expect(mockEq).toHaveBeenCalledWith("entregador_id", TEST_USER_ID);
+    });
+  });
+
+  describe("GET /api/v1/relatorios/fechamento", () => {
+    it("Deve gerar relatório de fechamento de turno vazio quando não houver entregas", async () => {
+      mockOrder.mockResolvedValueOnce({ data: [], error: null });
+
+      const response = await app.inject({
+        method: "GET",
+        url: "/api/v1/relatorios/fechamento?taxaEntrega=8&diaria=50",
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.sucesso).toBe(true);
+      expect(body.relatorio.totalParadas).toBe(0);
+      expect(body.relatorio.totalEntregues).toBe(0);
+      expect(body.relatorio.totalInsucessos).toBe(0);
+      expect(body.relatorio.kmRodados).toBe(0);
+      expect(body.relatorio.financeiro.diaria).toBe(50);
+      expect(body.relatorio.financeiro.totalGanhos).toBe(50);
+    });
+
+    it("Deve calcular paradas, devoluções, km e ganhos financeiros corretamente", async () => {
+      const mockEntregas = [
+        {
+          id: "e-1",
+          rua: "Rua das Flores, 100",
+          lat: -28.298,
+          lon: -54.263,
+          status: "entregue",
+          updated_at: "2026-09-14T13:00:00.000Z",
+        },
+        {
+          id: "e-2",
+          rua: "Av. Brasil, 200",
+          lat: -28.305,
+          lon: -54.270,
+          status: "entregue",
+          updated_at: "2026-09-14T13:30:00.000Z",
+        },
+        {
+          id: "e-3",
+          rua: "Rua do Comércio, 50",
+          lat: -28.310,
+          lon: -54.275,
+          status: "ausente",
+          referencia: "Motivo: Destinatário não atendeu o interfone",
+          updated_at: "2026-09-14T14:00:00.000Z",
+        },
+      ];
+
+      mockOrder.mockResolvedValueOnce({ data: mockEntregas, error: null });
+
+      const response = await app.inject({
+        method: "GET",
+        url: "/api/v1/relatorios/fechamento?taxaEntrega=10&valorKm=1.5&diaria=30",
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.sucesso).toBe(true);
+      expect(body.relatorio.totalParadas).toBe(3);
+      expect(body.relatorio.totalEntregues).toBe(2);
+      expect(body.relatorio.totalInsucessos).toBe(1);
+      expect(body.relatorio.insucessos[0].motivo).toBe("Destinatário não atendeu o interfone");
+      expect(body.relatorio.kmRodados).toBeGreaterThan(0);
+      expect(body.relatorio.financeiro.ganhosEntregas).toBe(20); // 2 entregues * 10
+      expect(body.relatorio.financeiro.diaria).toBe(30);
+      expect(body.relatorio.financeiro.totalGanhos).toBeGreaterThan(50);
     });
   });
 });

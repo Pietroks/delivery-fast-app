@@ -57,3 +57,12 @@ export const atualizarStatusSchema = z.object({
 });
 
 export type AtualizarStatusInput = z.infer<typeof atualizarStatusSchema>;
+
+export const relatorioFechamentoSchema = z.object({
+  data: z.string().optional(),
+  taxaEntrega: z.coerce.number().min(0).optional().default(0),
+  valorKm: z.coerce.number().min(0).optional().default(0),
+  diaria: z.coerce.number().min(0).optional().default(0),
+});
+
+export type RelatorioFechamentoInput = z.infer<typeof relatorioFechamentoSchema>;

@@ -15,6 +15,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { FechamentoTurnoModal } from "../components/FechamentoTurnoModal";
 
 export interface EntregaConcluida {
   id: string;
@@ -81,6 +82,7 @@ export default function HistoricoScreen() {
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [comprovanteSelecionado, setComprovanteSelecionado] = useState<EntregaConcluida | null>(null);
+  const [modalFechamentoAberto, setModalFechamentoAberto] = useState(false);
 
   const carregarHistorico = useCallback(async () => {
     try {
@@ -155,6 +157,24 @@ export default function HistoricoScreen() {
           <Text className="text-[#94a3b8] text-[10px]">Última Entrega</Text>
         </View>
       </View>
+
+      {/* Botão Acesso Rápido: Relatório de Fechamento de Turno */}
+      <TouchableOpacity
+        onPress={() => setModalFechamentoAberto(true)}
+        activeOpacity={0.8}
+        className="bg-[#152033] p-3 rounded-2xl border border-emerald-500/30 mb-4 flex-row items-center justify-between active:bg-[#1a283f]"
+      >
+        <View className="flex-row items-center">
+          <View className="bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/20 mr-3">
+            <Ionicons name="receipt-outline" size={18} color="#22c55e" />
+          </View>
+          <View>
+            <Text className="text-white font-bold text-xs">Relatório de Fechamento do Turno</Text>
+            <Text className="text-[#94a3b8] text-[10px]">Ganhos do dia, km rodados e prestação de contas</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color="#22c55e" />
+      </TouchableOpacity>
 
       <Text className="text-white font-bold text-sm mb-3">Todas as entregas concluídas</Text>
 
@@ -330,6 +350,12 @@ export default function HistoricoScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Fechamento de Turno & Prestação de Contas */}
+      <FechamentoTurnoModal
+        visivel={modalFechamentoAberto}
+        onFechar={() => setModalFechamentoAberto(false)}
+      />
     </SafeAreaView>
   );
 }

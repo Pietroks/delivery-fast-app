@@ -10,6 +10,7 @@ import {
   importarLoteSchema,
   ImportarLoteInput,
   atualizarStatusSchema,
+  relatorioFechamentoSchema,
 } from "../schemas/rotas.schema";
 import { verificarToken } from "../middlewares/auth.middleware";
 
@@ -658,6 +659,131 @@ export async function rotasRoutes(app: FastifyInstance) {
     return reply.status(200).send({ sucesso: true });
   });
 
+async function relatorioFechamentoHandler(request: FastifyRequest, reply: FastifyReply) {
+  const userId = (request as any).userId;
+  const validacao = relatorioFechamentoSchema.safeParse(request.query || {});
+  const { data: dataParam, taxaEntrega, valorKm, diaria } = validacao.success
+    ? validacao.data
+    : { data: undefined, taxaEntrega: 0, valorKm: 0, diaria: 0 };
+
+  const targetDate = dataParam ? new Date(dataParam) : new Date();
+  const dataInicio = new Date(targetDate);
+  dataInicio.setHours(0, 0, 0, 0);
+  const dataFim = new Date(targetDate);
+  dataFim.setHours(23, 59, 59, 999);
+
+  let inicioIso = dataInicio.toISOString();
+  let fimIso = dataFim.toISOString();
+  if (dataParam && /^\d{4}-\d{2}-\d{2}$/.test(dataParam)) {
+    inicioIso = `${dataParam}T00:00:00.000Z`;
+    fimIso = `${dataParam}T23:59:59.999Z`;
+  }
+
+  const { data: entregasDB, error } = await supabase
+    .from("entregas")
+    .select("*")
+    .eq("entregador_id", userId)
+    .gte("updated_at", inicioIso)
+    .lte("updated_at", fimIso)
+    .order("updated_at", { ascending: true });
+
+  if (error) {
+    return reply.status(500).send({ sucesso: false, erro: "Erro ao gerar o relatório de fechamento." });
+  }
+
+  const entregasFinalizadas = (entregasDB || []).filter(
+    (e: EntregaDB) => e.status && e.status !== "pendente",
+  );
+
+  const entregues = entregasFinalizadas.filter((e: EntregaDB) => e.status === "entregue");
+  const insucessos = entregasFinalizadas.filter((e: EntregaDB) =>
+    ["ausente", "nao_localizado", "recusado"].includes(e.status || ""),
+  );
+  const totalParadas = entregues.length + insucessos.length;
+
+  const coordsPontos: { lat: number; lon: number }[] = [];
+  entregasFinalizadas.forEach((p: EntregaDB) => {
+    if (p.lat && p.lon && !isNaN(p.lat) && !isNaN(p.lon) && p.lat !== 0 && p.lon !== 0) {
+      coordsPontos.push({ lat: p.lat, lon: p.lon });
+    }
+  });
+
+  let kmRodados = 0;
+  if (coordsPontos.length >= 2) {
+    const resFallback = calcularDistanciaRotaFallback(coordsPontos);
+    kmRodados = Number((resFallback.distanciaMetros / 1000).toFixed(1));
+  }
+
+  let horaInicio = "--:--";
+  let horaFim = "--:--";
+  let duracaoMinutos = 0;
+
+  if (entregasFinalizadas.length > 0 && entregasFinalizadas[0].updated_at) {
+    const dInicio = new Date(entregasFinalizadas[0].updated_at);
+    horaInicio = dInicio.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const ultimaEntrega = entregasFinalizadas[entregasFinalizadas.length - 1];
+    const dFim = new Date(ultimaEntrega.updated_at || entregasFinalizadas[0].updated_at);
+    horaFim = dFim.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    duracaoMinutos = Math.max(0, Math.round((dFim.getTime() - dInicio.getTime()) / 60000));
+  }
+
+  const tempoMedioPorParada = totalParadas > 0 ? Math.round(duracaoMinutos / totalParadas) : 0;
+
+  const ganhosEntregas = Number((entregues.length * taxaEntrega).toFixed(2));
+  const ganhosKm = Number((kmRodados * valorKm).toFixed(2));
+  const totalGanhos = Number((diaria + ganhosEntregas + ganhosKm).toFixed(2));
+
+  const listaInsucessos = insucessos.map((item: EntregaDB) => {
+    let motivo = item.status || "Insucesso";
+    if (item.referencia) {
+      if (item.referencia.startsWith("Motivo: ")) {
+        motivo = item.referencia.replace("Motivo: ", "");
+      } else if (item.referencia.includes("Comprovante:")) {
+        try {
+          const jsonParte = item.referencia.slice(item.referencia.indexOf("Comprovante:") + 12).trim();
+          const parsed = JSON.parse(jsonParte);
+          if (parsed.motivoInsucesso) motivo = parsed.motivoInsucesso;
+        } catch {}
+      }
+    }
+    return {
+      id: item.id,
+      rua: item.rua,
+      bairro: item.bairro || "",
+      destinatario: item.nome_destinatario || "",
+      status: item.status,
+      motivo,
+    };
+  });
+
+  const dataReferencia = dataParam || new Date().toISOString().split("T")[0];
+
+  return reply.status(200).send({
+    sucesso: true,
+    relatorio: {
+      data: dataReferencia,
+      totalParadas,
+      totalEntregues: entregues.length,
+      totalInsucessos: insucessos.length,
+      kmRodados,
+      horaInicio,
+      horaFim,
+      duracaoMinutos,
+      tempoMedioPorParada,
+      financeiro: {
+        taxaEntrega,
+        valorKm,
+        diaria,
+        ganhosEntregas,
+        ganhosKm,
+        totalGanhos,
+      },
+      insucessos: listaInsucessos,
+    },
+  });
+}
+
   app.get("/api/v1/entregas/historico-hoje", historicoGeralHandler);
+  app.get("/api/v1/relatorios/fechamento", relatorioFechamentoHandler);
   app.put("/api/v1/rotas/concluir-todas", concluirTodasEntregasHandler);
 }

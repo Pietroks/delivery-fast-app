@@ -11,6 +11,7 @@ import { abrirRotaGoogleMaps, calcularLotes } from "../utils/navigation";
 import { ResumoRotaCard, ResumoRotaData } from "../components/ResumoRotaCard";
 import { FinalizarRotaModal } from "../components/FinalizarRotaModal";
 import { ImportarLoteModal } from "../components/ImportarLoteModal";
+import { FechamentoTurnoModal } from "../components/FechamentoTurnoModal";
 import { carregarRotasLocalmente, salvarRotasLocalmente } from "../services/storage";
 import { useAuth } from "../contexts/AuthContext";
 import { obterLocalizacaoECidadeRapida } from "../services/location";
@@ -35,6 +36,7 @@ export default function HomeScreen() {
   const [otimizando, setOtimizando] = useState(false);
   const [modalFinalizarAberto, setModalFinalizarAberto] = useState(false);
   const [modalImportarAberto, setModalImportarAberto] = useState(false);
+  const [modalFechamentoAberto, setModalFechamentoAberto] = useState(false);
   const [loteAtivoIndex, setLoteAtivoIndex] = useState(0);
   const [finalizando, setFinalizando] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -172,7 +174,7 @@ export default function HomeScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setModalFinalizarAberto(false);
         await carregarEntregas();
-        Alert.alert("Sucesso", `${idsConcluidos.length} entrega(s) finalizada(s)!`);
+        setModalFechamentoAberto(true);
       } catch {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert("Erro", "Não foi possível finalizar as entregas.");
@@ -287,31 +289,42 @@ export default function HomeScreen() {
 
         {/* Botões de Ação Inferiores */}
         <View className="flex-row gap-2 mt-2">
-          <TouchableOpacity
-            className={`flex-1 py-3.5 rounded-xl flex-row justify-center items-center mt-2 ${
-              temRotas ? "bg-[#22c55e] active:bg-emerald-600" : "bg-[#1e2e48] opacity-50"
-            }`}
-            onPress={temRotas ? handleIniciarRota : undefined}
-            disabled={!temRotas || finalizando}
-            accessibilityLabel="Iniciar rota"
-          >
-            <Ionicons name="play" size={16} color={temRotas ? "#000000" : "#64748b"} style={{ marginRight: 6 }} />
-            <Text className={`font-bold text-sm ${temRotas ? "text-black" : "text-[#64748b]"}`}>
-              {temVariosLotes ? `Iniciar Lote ${loteAtivoIndex + 1} no GPS` : "Iniciar no GPS"}
-            </Text>
-          </TouchableOpacity>
+          {temRotas ? (
+            <>
+              <TouchableOpacity
+                className="flex-1 py-3.5 rounded-xl flex-row justify-center items-center mt-2 bg-[#22c55e] active:bg-emerald-600"
+                onPress={handleIniciarRota}
+                disabled={finalizando}
+                accessibilityLabel="Iniciar rota"
+              >
+                <Ionicons name="play" size={16} color="#000000" style={{ marginRight: 6 }} />
+                <Text className="font-bold text-sm text-black">
+                  {temVariosLotes ? `Iniciar Lote ${loteAtivoIndex + 1} no GPS` : "Iniciar no GPS"}
+                </Text>
+              </TouchableOpacity>
 
-          {temRotas && (
+              <TouchableOpacity
+                className="bg-[#152033] border border-emerald-500/50 px-4 py-3.5 rounded-xl flex-row justify-center items-center active:bg-emerald-950 mt-2"
+                onPress={() => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                  setModalFinalizarAberto(true);
+                }}
+                disabled={finalizando}
+              >
+                <Ionicons name="checkmark-done-sharp" size={16} color="#22c55e" style={{ marginRight: 6 }} />
+                <Text className="text-emerald-400 font-bold text-xs">Finalizar Rota</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
             <TouchableOpacity
-              className="bg-[#152033] border border-emerald-500/50 px-4 py-3.5 rounded-xl flex-row justify-center items-center active:bg-emerald-950"
-              onPress={() => {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                setModalFinalizarAberto(true);
-              }}
-              disabled={finalizando}
+              className="flex-1 py-3.5 rounded-xl flex-row justify-center items-center mt-2 bg-[#152033] border border-emerald-500/50 active:bg-[#1e2e48]"
+              onPress={() => setModalFechamentoAberto(true)}
+              accessibilityLabel="Fechamento do Turno de Hoje"
             >
-              <Ionicons name="checkmark-done-sharp" size={16} color="#22c55e" style={{ marginRight: 6 }} />
-              <Text className="text-emerald-400 font-bold text-xs">Finalizar Rota</Text>
+              <Ionicons name="receipt-outline" size={18} color="#22c55e" style={{ marginRight: 8 }} />
+              <Text className="font-bold text-sm text-white">
+                Fechamento do Turno de Hoje
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -331,6 +344,12 @@ export default function HomeScreen() {
         visivel={modalImportarAberto}
         onFechar={() => setModalImportarAberto(false)}
         onImportadoComSucesso={carregarEntregas}
+      />
+
+      {/* Modal de Fechamento de Turno & Relatório */}
+      <FechamentoTurnoModal
+        visivel={modalFechamentoAberto}
+        onFechar={() => setModalFechamentoAberto(false)}
       />
     </SafeAreaView>
   );
