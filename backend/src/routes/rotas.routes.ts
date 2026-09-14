@@ -172,7 +172,7 @@ async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply)
           telefone: body.telefone || "",
           referencia: body.referencia || "",
           status: "pendente",
-          entregador_id: userId, // Vincula ao usuário logado
+          entregador_id: userId,
         },
       ])
       .select()
@@ -199,7 +199,6 @@ async function importarLoteHandler(request: FastifyRequest, reply: FastifyReply)
     const agora = new Date();
     const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
 
-    // Geocodifica todas as entregas do lote em paralelo
     const entregasProcessadas = await Promise.all(
       entregas.map(async (item) => {
         const coords = await geocodificarNoCadastro(item.rua, item.numero, item.bairro, item.cidade, item.cep);
@@ -234,7 +233,6 @@ async function importarLoteHandler(request: FastifyRequest, reply: FastifyReply)
     return reply.status(500).send({ sucesso: false, erro: "Falha ao processar lote de entregas." });
   }
 }
-
 
 async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyReply) {
   const userId = (request as any).userId;
@@ -314,7 +312,7 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
     const pontosOtimizados = await otimizarSequencia(pontosEntrada);
 
     let novaOrdem = 1;
-    const updates: Promise<any>[] = [];
+    const updates: any[] = [];
 
     for (const item of pontosOtimizados) {
       const entregaCorrespondente = entregasTipadas.find(
@@ -327,7 +325,8 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
             .from("entregas")
             .update({ ordem: ordemAtualizada })
             .eq("id", entregaCorrespondente.id)
-            .eq("entregador_id", userId),
+            .eq("entregador_id", userId)
+            .select(),
         );
       }
     }
@@ -381,10 +380,11 @@ async function historicoGeralHandler(request: FastifyRequest, reply: FastifyRepl
 async function concluirTodasEntregasHandler(request: FastifyRequest, reply: FastifyReply) {
   const userId = (request as any).userId;
   try {
-    const { idsConcluidos, itensConcluidos } = (request.body as {
-      idsConcluidos?: string[];
-      itensConcluidos?: { id: string; status?: string; motivoInsucesso?: string; recebidoPor?: string }[];
-    }) || {};
+    const { idsConcluidos, itensConcluidos } =
+      (request.body as {
+        idsConcluidos?: string[];
+        itensConcluidos?: { id: string; status?: string; motivoInsucesso?: string; recebidoPor?: string }[];
+      }) || {};
 
     if (itensConcluidos && Array.isArray(itensConcluidos) && itensConcluidos.length > 0) {
       const updates = itensConcluidos.map((item) => {
@@ -394,13 +394,13 @@ async function concluirTodasEntregasHandler(request: FastifyRequest, reply: Fast
         };
         if (item.motivoInsucesso) updatePayload.referencia = `Motivo: ${item.motivoInsucesso}`;
         if (item.recebidoPor) updatePayload.nome_destinatario = item.recebidoPor;
-        return supabase.from("entregas").update(updatePayload).eq("id", item.id).eq("entregador_id", userId);
+        return supabase.from("entregas").update(updatePayload).eq("id", item.id).eq("entregador_id", userId).select();
       });
       await Promise.all(updates);
       return reply.status(200).send({ sucesso: true, mensagem: "Entregas finalizadas com sucesso!" });
     }
 
-    let query = supabase.from("entregas").update({ status: "entregue", updated_at: new Date().toISOString() }).eq("entregador_id", userId); // Trava de segurança
+    let query = supabase.from("entregas").update({ status: "entregue", updated_at: new Date().toISOString() }).eq("entregador_id", userId);
 
     if (idsConcluidos && Array.isArray(idsConcluidos) && idsConcluidos.length > 0) {
       query = query.in("id", idsConcluidos);
@@ -422,7 +422,6 @@ async function concluirTodasEntregasHandler(request: FastifyRequest, reply: Fast
 // ============================================================================
 
 export async function rotasRoutes(app: FastifyInstance) {
-  // Ativa a proteção globalmente para este escopo
   app.addHook("preHandler", verificarToken);
 
   app.post("/api/v1/entregas", criarEntregaHandler);
@@ -462,7 +461,7 @@ export async function rotasRoutes(app: FastifyInstance) {
 
       try {
         const updates = paradas.map((item) =>
-          supabase.from("entregas").update({ ordem: item.ordem }).eq("id", item.id).eq("entregador_id", userId),
+          supabase.from("entregas").update({ ordem: item.ordem }).eq("id", item.id).eq("entregador_id", userId).select(),
         );
         await Promise.all(updates);
         return reply.status(200).send({ sucesso: true });
@@ -472,64 +471,53 @@ export async function rotasRoutes(app: FastifyInstance) {
     },
   );
 
-  app.put(
-    "/api/v1/entregas/:id/status",
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-      const { id } = request.params;
-      const validacao = atualizarStatusSchema.safeParse(request.body);
+  app.put("/api/v1/entregas/:id/status", async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const { id } = request.params;
+    const validacao = atualizarStatusSchema.safeParse(request.body);
 
-      if (!validacao.success) {
-        return reply.status(400).send({
-          sucesso: false,
-          erro: validacao.error.issues[0]?.message || "Status de entrega inválido.",
-        });
-      }
+    if (!validacao.success) {
+      return reply.status(400).send({
+        sucesso: false,
+        erro: validacao.error.issues[0]?.message || "Status de entrega inválido.",
+      });
+    }
 
-      const {
-        status,
-        motivoInsucesso,
+    const { status, motivoInsucesso, recebidoPor, documentoRecebedor, fotoComprovante, assinaturaDigital } = validacao.data;
+    const userId = (request as any).userId;
+
+    const updateData: Record<string, any> = {
+      status,
+      updated_at: new Date().toISOString(),
+    };
+    if (motivoInsucesso) updateData.referencia = `Motivo: ${motivoInsucesso}`;
+    if (recebidoPor) updateData.nome_destinatario = recebidoPor;
+    if (documentoRecebedor) updateData.documento_recebedor = documentoRecebedor;
+    if (fotoComprovante) updateData.foto_comprovante = fotoComprovante;
+    if (assinaturaDigital) updateData.assinatura_digital = assinaturaDigital;
+
+    let { error } = await supabase.from("entregas").update(updateData).eq("id", id).eq("entregador_id", userId);
+
+    if (error && (fotoComprovante || assinaturaDigital || documentoRecebedor)) {
+      const dadosComprovante = {
         recebidoPor,
         documentoRecebedor,
         fotoComprovante,
         assinaturaDigital,
-      } = validacao.data;
-      const userId = (request as any).userId;
-
-      const updateData: Record<string, any> = {
+        motivoInsucesso,
+      };
+      const fallbackData: Record<string, any> = {
         status,
         updated_at: new Date().toISOString(),
+        referencia: `Comprovante: ${JSON.stringify(dadosComprovante)}`,
       };
-      if (motivoInsucesso) updateData.referencia = `Motivo: ${motivoInsucesso}`;
-      if (recebidoPor) updateData.nome_destinatario = recebidoPor;
-      if (documentoRecebedor) updateData.documento_recebedor = documentoRecebedor;
-      if (fotoComprovante) updateData.foto_comprovante = fotoComprovante;
-      if (assinaturaDigital) updateData.assinatura_digital = assinaturaDigital;
+      if (recebidoPor) fallbackData.nome_destinatario = recebidoPor;
+      const resFallback = await supabase.from("entregas").update(fallbackData).eq("id", id).eq("entregador_id", userId);
+      error = resFallback.error;
+    }
 
-      let { error } = await supabase.from("entregas").update(updateData).eq("id", id).eq("entregador_id", userId);
-
-      // Fallback defensivo: se colunas específicas ainda não existirem no Supabase, consolida em 'referencia'
-      if (error && (fotoComprovante || assinaturaDigital || documentoRecebedor)) {
-        const dadosComprovante = {
-          recebidoPor,
-          documentoRecebedor,
-          fotoComprovante,
-          assinaturaDigital,
-          motivoInsucesso,
-        };
-        const fallbackData: Record<string, any> = {
-          status,
-          updated_at: new Date().toISOString(),
-          referencia: `Comprovante: ${JSON.stringify(dadosComprovante)}`,
-        };
-        if (recebidoPor) fallbackData.nome_destinatario = recebidoPor;
-        const resFallback = await supabase.from("entregas").update(fallbackData).eq("id", id).eq("entregador_id", userId);
-        error = resFallback.error;
-      }
-
-      if (error) return reply.status(500).send({ sucesso: false, erro: "Erro ao atualizar status." });
-      return reply.status(200).send({ sucesso: true });
-    },
-  );
+    if (error) return reply.status(500).send({ sucesso: false, erro: "Erro ao atualizar status." });
+    return reply.status(200).send({ sucesso: true });
+  });
 
   app.get("/api/v1/entregas/historico-hoje", historicoGeralHandler);
   app.put("/api/v1/rotas/concluir-todas", concluirTodasEntregasHandler);

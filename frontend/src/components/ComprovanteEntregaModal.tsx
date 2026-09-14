@@ -11,7 +11,6 @@ import {
   ScrollView,
   PanResponder,
   GestureResponderEvent,
-  PanResponderGestureState,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -38,13 +37,7 @@ interface Traço {
   pontos: { x: number; y: number }[];
 }
 
-export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = ({
-  visivel,
-  parada,
-  carregando,
-  onFechar,
-  onConfirmar,
-}) => {
+export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = ({ visivel, parada, carregando, onFechar, onConfirmar }) => {
   const [abaAtiva, setAbaAtiva] = useState<"foto" | "assinatura">("foto");
   const [fotoUri, setFotoUri] = useState<string | null>(null);
   const [recebidoPor, setRecebidoPor] = useState("");
@@ -186,9 +179,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
               }`}
             >
               <Ionicons name="camera-outline" size={16} color={abaAtiva === "foto" ? "#22c55e" : "#94a3b8"} />
-              <Text className={`text-xs font-bold ${abaAtiva === "foto" ? "text-emerald-400" : "text-[#94a3b8]"}`}>
-                Foto da Encomenda
-              </Text>
+              <Text className={`text-xs font-bold ${abaAtiva === "foto" ? "text-emerald-400" : "text-[#94a3b8]"}`}>Foto da Encomenda</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -242,9 +233,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
                         <Ionicons name="camera" size={24} color="#22c55e" />
                       </View>
                       <Text className="text-white font-bold text-sm">Tirar Foto do Pacote</Text>
-                      <Text className="text-[#94a3b8] text-[11px] mt-1 text-center">
-                        Fotografe o pacote entregue na porta ou em mãos
-                      </Text>
+                      <Text className="text-[#94a3b8] text-[11px] mt-1 text-center">Fotografe o pacote entregue na porta ou em mãos</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -298,9 +287,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
                     className="bg-[#0b1320] h-32 rounded-xl border border-dashed border-[#334155] justify-center items-center relative overflow-hidden"
                   >
                     {!temAssinatura ? (
-                      <Text className="text-[#475569] text-xs pointer-events-none">
-                        Peça para o cliente assinar com o dedo aqui
-                      </Text>
+                      <Text className="text-[#475569] text-xs pointer-events-none">Peça para o cliente assinar com o dedo aqui</Text>
                     ) : (
                       <View className="w-full h-full relative">
                         {tracos.map((traco, tIdx) => (
@@ -352,9 +339,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
                   <Text className="text-black font-bold text-xs">Finalizando...</Text>
                 </View>
               ) : (
-                <Text className="text-black font-bold text-xs">
-                  {temComprovante ? "Salvar com Comprovante" : "Confirmar Entrega"}
-                </Text>
+                <Text className="text-black font-bold text-xs">{temComprovante ? "Salvar com Comprovante" : "Confirmar Entrega"}</Text>
               )}
             </TouchableOpacity>
           </View>
