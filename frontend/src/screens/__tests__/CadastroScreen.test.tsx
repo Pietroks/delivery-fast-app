@@ -122,4 +122,19 @@ describe("Tela: CadastroScreen", () => {
       expect.any(Array),
     );
   });
+
+  test("Deve alternar a visibilidade dos campos de senha e confirmação de senha", () => {
+    const { getByPlaceholderText, getByLabelText } = render(<CadastroScreen />);
+    const senhaInput = getByPlaceholderText("Mínimo de 6 caracteres");
+    const confirmaInput = getByPlaceholderText("Repita a senha");
+
+    expect(senhaInput.props.secureTextEntry).toBe(true);
+    expect(confirmaInput.props.secureTextEntry).toBe(true);
+
+    fireEvent.press(getByLabelText("Ver senha"));
+    expect(senhaInput.props.secureTextEntry).toBe(false);
+
+    fireEvent.press(getByLabelText("Ver confirmação de senha"));
+    expect(confirmaInput.props.secureTextEntry).toBe(false);
+  });
 });

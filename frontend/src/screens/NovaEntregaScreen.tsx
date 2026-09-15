@@ -6,6 +6,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { api } from "../services/api";
 import * as Location from "expo-location";
 import { obterLocalizacaoECidadeRapida, setCidadeEmCache, getCidadeEmCache } from "../services/location";
+import { alertaApp } from "../contexts/AlertContext";
 
 interface NovaEntregaScreenProps {
   onVoltar?: () => void;
@@ -212,15 +213,11 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
     if (carregando) return;
 
     if (!rua.trim()) {
-      Alert.alert("Atenção", "Informe a rua / logradouro.");
-      return;
-    }
-    if (!numero.trim()) {
-      Alert.alert("Atenção", "Informe o número da residência.");
+      alertaApp("Atenção", "Informe a rua / logradouro.");
       return;
     }
     if (!nomeDestinatario.trim()) {
-      Alert.alert("Atenção", "Informe o nome do destinatário.");
+      alertaApp("Atenção", "Informe o nome do destinatário.");
       return;
     }
 
@@ -240,12 +237,14 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
         setCidadeEmCache(cidade.trim());
       }
 
-      const enderecoFormatadoExato = `${rua.trim()}, ${numero.trim()}${bairro.trim() ? ` - ${bairro.trim()}` : ""}${cidade.trim() ? `, ${cidade.trim()}` : ""}${cep.trim() ? ` - CEP: ${cep.trim()}` : ""}`;
+      const ruaTexto = rua.trim();
+      const numTexto = numero.trim();
+      const enderecoFormatadoExato = `${ruaTexto}${numTexto ? `, ${numTexto}` : ""}${bairro.trim() ? ` - ${bairro.trim()}` : ""}${cidade.trim() ? `, ${cidade.trim()}` : ""}${cep.trim() ? ` - CEP: ${cep.trim()}` : ""}`;
 
       await api.post("/entregas", {
         endereco: enderecoFormatadoExato,
-        rua: rua.trim(),
-        numero: numero.trim(),
+        rua: ruaTexto,
+        numero: numTexto || undefined,
         bairro: bairro.trim(),
         cidade: cidade.trim(),
         cep: cep.replace(/\D/g, ""),
@@ -258,7 +257,7 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
       });
 
       limparFormulario();
-      Alert.alert("Sucesso", "Entrega cadastrada com sucesso!");
+      alertaApp("Sucesso", "Entrega cadastrada com sucesso!");
       onEntregaSalva?.();
       handleVoltarAction();
     } catch (error: unknown) {
@@ -267,7 +266,7 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
         const axiosError = error as { response?: { data?: { erro?: string } } };
         mensagem = axiosError.response?.data?.erro || error.message;
       }
-      Alert.alert("Erro", mensagem);
+      alertaApp("Erro", mensagem);
     } finally {
       if (mountedRef.current) {
         setCarregando(false);
@@ -302,15 +301,14 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        <FormInput label="Logradouro / Rua *" placeholder="Ex: Rua XV de Novembro" value={rua} onChangeText={setRua} />
+        <FormInput label="Logradouro / Rua / Plus Code *" placeholder="Ex: Rua XV de Novembro" value={rua} onChangeText={setRua} />
 
         <View className="flex-row gap-3">
           <FormInput
-            label="Número *"
+            label="Número (opcional)"
             placeholder="Ex: 1500"
             value={numero}
             onChangeText={setNumero}
-            keyboardType="numeric"
             classNameCustom="flex-1 mb-4"
           />
           <FormInput label="Bairro" placeholder="Ex: Centro" value={bairro} onChangeText={setBairro} classNameCustom="flex-1 mb-4" />

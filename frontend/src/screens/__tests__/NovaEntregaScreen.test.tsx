@@ -51,6 +51,31 @@ describe("Tela Completa: NovaEntregaScreen", () => {
     expect(api.post).not.toHaveBeenCalled();
   }, 10000);
 
+  test("Deve permitir salvar entrega sem número (opcional)", async () => {
+    const { getByPlaceholderText, getByText } = render(<NovaEntregaScreen />);
+
+    await waitFor(() => {
+      expect(getByPlaceholderText("Ex: Rua XV de Novembro")).toBeTruthy();
+    });
+
+    fireEvent.changeText(getByPlaceholderText("Ex: Rua XV de Novembro"), "Rodovia RS-344 KM 10");
+    fireEvent.changeText(getByPlaceholderText("Digite o nome"), "Posto Ipiranga");
+
+    const botaoSalvar = getByText("Salvar entrega");
+    fireEvent.press(botaoSalvar);
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        "/entregas",
+        expect.objectContaining({
+          rua: "Rodovia RS-344 KM 10",
+          numero: undefined,
+          nomeDestinatario: "Posto Ipiranga",
+        }),
+      );
+    });
+  }, 10000);
+
   test("Não deve renderizar opções legadas de seleção de aplicativo de mapa (Waze)", () => {
     const { queryByText } = render(<NovaEntregaScreen />);
     expect(queryByText("Waze")).toBeNull();

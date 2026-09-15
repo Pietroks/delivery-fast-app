@@ -96,6 +96,31 @@ function formatarParadas(entregas: EntregaDB[]): ParadaFormatada[] {
   }));
 }
 
+export function normalizarNomeRua(rua: string): string {
+  let r = (rua || "").trim();
+  // Expande abreviações comuns no trânsito e logradouros brasileiros
+  r = r.replace(/\bmal\.?\s+/gi, "Marechal ");
+  r = r.replace(/\bav\.?\s+/gi, "Avenida ");
+  r = r.replace(/\br\.?\s+/gi, "Rua ");
+  r = r.replace(/\bdr\.?\s+/gi, "Doutor ");
+  r = r.replace(/\bdra\.?\s+/gi, "Doutora ");
+  r = r.replace(/\bcel\.?\s+/gi, "Coronel ");
+  r = r.replace(/\bpres\.?\s+/gi, "Presidente ");
+  r = r.replace(/\bprof\.?\s+/gi, "Professor ");
+  r = r.replace(/\brod\.?\s+/gi, "Rodovia ");
+  r = r.replace(/\bpç\.?\s+/gi, "Praça ");
+  r = r.replace(/\bpca\.?\s+/gi, "Praça ");
+  r = r.replace(/\bgen\.?\s+/gi, "General ");
+  r = r.replace(/\bsgt\.?\s+/gi, "Sargento ");
+  r = r.replace(/\bten\.?\s+/gi, "Tenente ");
+
+  // Variações e correções fonéticas locais comuns
+  r = r.replace(/\bmarques do erval\b/gi, "Marquês do Herval");
+  r = r.replace(/\berval\b/gi, "Herval");
+
+  return r.trim();
+}
+
 async function geocodificarNoCadastro(
   rua: string,
   numero?: string,
@@ -106,7 +131,8 @@ async function geocodificarNoCadastro(
   lonUsuario?: number,
 ): Promise<{ lat: number; lon: number }> {
   try {
-    const ruaLimpa = (rua || "").replace(/[.,;]+$/, "").trim();
+    const ruaNormalizada = normalizarNomeRua(rua);
+    const ruaLimpa = ruaNormalizada.replace(/[.,;]+$/, "").trim();
     const numeroLimpo = (numero || "").replace(/[.,;]+$/, "").trim();
     const bairroLimpo = (bairro || "").replace(/[.,;]+$/, "").trim();
     const cidadeLimpa = (cidade || "").replace(/[.,;]+$/, "").trim();
@@ -115,6 +141,22 @@ async function geocodificarNoCadastro(
     let ruaOficial = ruaLimpa;
     let bairroOficial = bairroLimpo;
     let cidadeOficial = cidadeLimpa;
+
+    // Suporte a Plus Codes (Open Location Codes, ex: PQ56+QJ)
+    const plusCodeMatch = ruaLimpa.match(/[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{2,3}/i);
+    if (plusCodeMatch) {
+      try {
+        const queryCode = `${plusCodeMatch[0]}${cidadeOficial ? `, ${cidadeOficial}` : ""}, Brasil`;
+        const resCode = await axios.get("https://nominatim.openstreetmap.org/search", {
+          params: { q: queryCode, format: "json", limit: 1, countrycodes: "br" },
+          headers: { "User-Agent": "DeliveryFastApp/1.0" },
+          timeout: 2500,
+        });
+        if (resCode.data?.[0]) {
+          return { lat: parseFloat(resCode.data[0].lat), lon: parseFloat(resCode.data[0].lon) };
+        }
+      } catch {}
+    }
 
     // Se houver CEP de 8 dígitos, consulta BrasilAPI / CEP
     if (cepLimpo && cepLimpo.length === 8) {
@@ -309,35 +351,40 @@ async function importarLoteHandler(request: FastifyRequest, reply: FastifyReply)
 
     let proximaOrdem = (ultimasEntregas?.[0]?.ordem ?? 0) + 1;
 
-    const entregasProcessadas = await Promise.all(
-      entregas.map(async (item) => {
-        const cidadeFinal = item.cidade || cidadePadrao || "";
-        const coords = await geocodificarNoCadastro(
-          item.rua,
-          item.numero,
-          item.bairro,
-          cidadeFinal,
-          item.cep,
-          latUsuario,
-          lonUsuario,
-        );
-        const enderecoFormatado = `${item.rua}${item.numero ? `, ${item.numero}` : ""}${item.bairro ? ` - ${item.bairro}` : ""}${cidadeFinal ? `, ${cidadeFinal}` : ""}${item.cep ? ` - CEP: ${item.cep}` : ""}`;
+    const entregasProcessadas: any[] = [];
+    for (let i = 0; i < entregas.length; i++) {
+      const item = entregas[i];
+      const cidadeFinal = item.cidade || cidadePadrao || "";
+      const coords = await geocodificarNoCadastro(
+        item.rua,
+        item.numero,
+        item.bairro,
+        cidadeFinal,
+        item.cep,
+        latUsuario,
+        lonUsuario,
+      );
+      const enderecoFormatado = `${item.rua}${item.numero ? `, ${item.numero}` : ""}${item.bairro ? ` - ${item.bairro}` : ""}${cidadeFinal ? `, ${cidadeFinal}` : ""}${item.cep ? ` - CEP: ${item.cep}` : ""}`;
 
-        return {
-          ordem: proximaOrdem++,
-          rua: enderecoFormatado,
-          bairro: item.bairro || cidadeFinal || "",
-          horario_estimado: horaAtual,
-          lat: coords.lat,
-          lon: coords.lon,
-          nome_destinatario: item.nomeDestinatario || "",
-          telefone: item.telefone || "",
-          referencia: item.referencia || "",
-          status: "pendente",
-          entregador_id: userId,
-        };
-      }),
-    );
+      entregasProcessadas.push({
+        ordem: proximaOrdem++,
+        rua: enderecoFormatado,
+        bairro: item.bairro || cidadeFinal || "",
+        horario_estimado: horaAtual,
+        lat: coords.lat,
+        lon: coords.lon,
+        nome_destinatario: item.nomeDestinatario || "",
+        telefone: item.telefone || "",
+        referencia: item.referencia || "",
+        status: "pendente",
+        entregador_id: userId,
+      });
+
+      // Se houver mais itens, aguarda 200ms para evitar rate-limit de 429 no Nominatim
+      if (i < entregas.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    }
 
     const { data, error } = await supabase.from("entregas").insert(entregasProcessadas).select();
 

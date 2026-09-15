@@ -1,17 +1,22 @@
 import { Linking, Alert } from "react-native";
 
-interface ParadaNavegacao {
+export interface ParadaNavegacao {
   rua: string;
   lat?: number;
   lon?: number;
 }
 
-function codificarEndereco(endereco?: string): string | null {
-  const limpo = endereco?.trim();
-  return limpo && limpo.length > 0 ? encodeURIComponent(limpo) : null;
+export function limparEnderecoParaMaps(endereco?: string): string {
+  if (!endereco) return "";
+  // Remove sufixos como "- CEP: 98800-000" para otimizar a busca no Google Maps
+  return endereco.replace(/\s*-\s*CEP:?\s*[\d.-]+/gi, "").trim();
 }
 
-function formatarPontoMaps(parada: ParadaNavegacao): string | null {
+export function formatarPontoMaps(parada: ParadaNavegacao): string | null {
+  const enderecoLimpo = limparEnderecoParaMaps(parada.rua);
+  if (enderecoLimpo.length > 0) {
+    return encodeURIComponent(enderecoLimpo);
+  }
   if (
     parada.lat !== undefined &&
     parada.lon !== undefined &&
@@ -22,7 +27,7 @@ function formatarPontoMaps(parada: ParadaNavegacao): string | null {
   ) {
     return `${parada.lat},${parada.lon}`;
   }
-  return codificarEndereco(parada.rua);
+  return null;
 }
 
 /**
@@ -73,11 +78,12 @@ export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[], loteIndex:
     const destinoFinal = formatarPontoMaps(paradasParaNavegar[paradasParaNavegar.length - 1]);
 
     // Waypoints = Todos os endereços do primeiro até o penúltimo deste lote
+    // Usamos %7C (pipe URL-encoded) para compatibilidade garantida com o parser de Intents do Android
     const waypoints = paradasParaNavegar
       .slice(0, -1)
       .map((p) => formatarPontoMaps(p))
       .filter((p): p is string => p !== null)
-      .join("|");
+      .join("%7C");
 
     if (!destinoFinal) {
       Alert.alert("Erro", "Endereço de destino inválido.");

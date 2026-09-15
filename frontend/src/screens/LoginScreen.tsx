@@ -1,21 +1,23 @@
 import { useState } from "react";
 import { ActivityIndicator, Alert, SafeAreaView, StatusBar, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { supabase } from "../services/supabase";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AuthStackParamList } from "../navigation/RootNavigator";
+import { alertaApp } from "../contexts/AlertContext";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
 
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
 
   const handleLogin = async () => {
     if (!email || !senha) {
-      Alert.alert("Atenção", "Preencha o e-mail e senha para acessar.");
+      alertaApp("Atenção", "Preencha o e-mail e senha para acessar.");
       return;
     }
 
@@ -26,7 +28,7 @@ export default function LoginScreen() {
     });
 
     if (error) {
-      Alert.alert("Erro no login", "E-mail ou senha incorretos.");
+      alertaApp("Erro no login", "E-mail ou senha incorretos.");
       setCarregando(false);
     }
   };
@@ -71,11 +73,18 @@ export default function LoginScreen() {
               className="flex-1 text-white ml-3"
               placeholder="••••••••"
               placeholderTextColor="#475569"
-              secureTextEntry
+              secureTextEntry={!mostrarSenha}
               value={senha}
               onChangeText={setSenha}
               editable={!carregando}
             />
+            <TouchableOpacity
+              onPress={() => setMostrarSenha(!mostrarSenha)}
+              className="p-2 -mr-2"
+              accessibilityLabel={mostrarSenha ? "Ocultar senha" : "Ver senha"}
+            >
+              <Ionicons name={mostrarSenha ? "eye-off-outline" : "eye-outline"} size={20} color="#94a3b8" />
+            </TouchableOpacity>
           </View>
         </View>
 

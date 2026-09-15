@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import Fastify from "fastify";
 import axios from "axios";
-import { rotasRoutes } from "../rotas.routes";
+import { rotasRoutes, normalizarNomeRua } from "../rotas.routes";
 
 vi.mock("axios");
 const mockedAxios = vi.mocked(axios, true);
@@ -423,6 +423,16 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       expect(body.relatorio.financeiro.ganhosEntregas).toBe(20); // 2 entregues * 10
       expect(body.relatorio.financeiro.diaria).toBe(30);
       expect(body.relatorio.financeiro.totalGanhos).toBeGreaterThan(50);
+    });
+  });
+
+  describe("normalizarNomeRua", () => {
+    it("Deve expandir abreviações como Mal., Av., R., Dr. e corrigir Marques do Erval", () => {
+      expect(normalizarNomeRua("Mal. Floriano")).toBe("Marechal Floriano");
+      expect(normalizarNomeRua("Av. Brasil")).toBe("Avenida Brasil");
+      expect(normalizarNomeRua("R. 31 de Dezembro")).toBe("Rua 31 de Dezembro");
+      expect(normalizarNomeRua("Rua Marques do Erval")).toBe("Rua Marquês do Herval");
+      expect(normalizarNomeRua("Dr. Bozano")).toBe("Doutor Bozano");
     });
   });
 });

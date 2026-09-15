@@ -5,6 +5,7 @@ import Skeleton from "./src/components/Skeleton";
 import { NavigationContainer } from "@react-navigation/native";
 import RootNavigator from "./src/navigation/RootNavigator";
 import { AuthProvider } from "./src/contexts/AuthContext";
+import { AlertProvider } from "./src/contexts/AlertContext";
 
 export default function App() {
   const [carregandoSplash, setCarregandoSplash] = useState(true);
@@ -27,9 +28,11 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <NavigationContainer>
-        <RootNavigator />
-      </NavigationContainer>
+      <AlertProvider>
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </AlertProvider>
     </AuthProvider>
   );
 }

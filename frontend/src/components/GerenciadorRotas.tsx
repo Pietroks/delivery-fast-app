@@ -6,6 +6,7 @@ import * as Haptics from "expo-haptics";
 import { Parada } from "../screens/HomeScreen";
 import { api } from "../services/api";
 import { ComprovanteEntregaModal, DadosComprovante } from "./ComprovanteEntregaModal";
+import { alertaApp } from "../contexts/AlertContext";
 
 interface GerenciadorRotasProps {
   paradas: Parada[];
@@ -60,21 +61,27 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
   // ---------------------------------------------------------------------
   // Ações de contato
   // ---------------------------------------------------------------------
-  const ligarParaCliente = useCallback((telefone?: string) => {
+  const ligarParaCliente = useCallback((telefone?: string, nomeCliente?: string) => {
     const numeroLimpo = formatarTelefone(telefone);
     if (!numeroLimpo) {
-      Alert.alert("Telefone não informado", "Esta entrega não possui um número de telefone associado.");
+      alertaApp("Telefone não informado", "Esta entrega não possui um número de telefone associado.");
       return;
     }
-    Linking.openURL(`tel:${numeroLimpo}`).catch(() => {
-      Alert.alert("Erro", "Não foi possível abrir o discador.");
+    const numeroFormatado = numeroLimpo.startsWith("55") ? numeroLimpo : `55${numeroLimpo}`;
+    const urlApp = `whatsapp://send?phone=${numeroFormatado}`;
+    const urlWeb = `https://wa.me/${numeroFormatado}`;
+
+    Linking.openURL(urlApp).catch(() => {
+      Linking.openURL(urlWeb).catch(() => {
+        alertaApp("Erro", "Não foi possível abrir o WhatsApp.");
+      });
     });
   }, []);
 
   const abrirWhatsapp = useCallback((telefone?: string, nomeCliente?: string) => {
     const numeroLimpo = formatarTelefone(telefone);
     if (!numeroLimpo) {
-      Alert.alert("Telefone não informado", "Esta entrega não possui um número de telefone associado.");
+      alertaApp("Telefone não informado", "Esta entrega não possui um número de telefone associado.");
       return;
     }
     const numeroFormatado = numeroLimpo.startsWith("55") ? numeroLimpo : `55${numeroLimpo}`;
@@ -87,7 +94,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
 
     Linking.openURL(urlApp).catch(() => {
       Linking.openURL(urlWeb).catch(() => {
-        Alert.alert("Erro", "Não foi possível abrir o WhatsApp.");
+        alertaApp("Erro", "Não foi possível abrir o WhatsApp.");
       });
     });
   }, []);
@@ -117,7 +124,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
       } catch {
         restaurarLista();
         hapticaErro();
-        Alert.alert("Erro de conexão", "Não foi possível salvar a nova ordem no servidor.");
+        alertaApp("Erro de conexão", "Não foi possível salvar a nova ordem no servidor.");
       }
     },
     [onReordenarLocal, restaurarLista, hapticaErro],
@@ -156,7 +163,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
       } catch {
         restaurarLista();
         hapticaErro();
-        Alert.alert("Erro", "Não foi possível marcar como entregue.");
+        alertaApp("Erro", "Não foi possível marcar como entregue.");
       } finally {
         setCarregandoAcao("nenhum");
       }
@@ -186,7 +193,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
       } catch {
         restaurarLista();
         hapticaErro();
-        Alert.alert("Erro", "Não foi possível registrar o comprovante da entrega.");
+        alertaApp("Erro", "Não foi possível registrar o comprovante da entrega.");
       } finally {
         setCarregandoComprovante(false);
       }
@@ -197,7 +204,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
   const handleExcluir = useCallback(
     (item: Parada) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Alert.alert("Excluir parada", `Deseja remover "${item.rua}" da rota?`, [
+      alertaApp("Excluir parada", `Deseja remover "${item.rua}" da rota?`, [
         { text: "Cancelar", style: "cancel" },
         {
           text: "Excluir",
@@ -214,7 +221,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
             } catch {
               restaurarLista();
               hapticaErro();
-              Alert.alert("Erro", "Não foi possível excluir a entrega.");
+              alertaApp("Erro", "Não foi possível excluir a entrega.");
             } finally {
               setCarregandoAcao("nenhum");
             }
@@ -236,7 +243,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
       onAtualizarLista();
     } catch {
       hapticaErro();
-      Alert.alert("Erro", "Não foi possível atualizar o endereço.");
+      alertaApp("Erro", "Não foi possível atualizar o endereço.");
     } finally {
       setCarregandoAcao("nenhum");
     }
@@ -264,7 +271,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
             {/* Linha Superior */}
             <View className="flex-row items-center">
               <TouchableOpacity
-                onPress={() => handleConcluir(item)}
+                onPress={() => handleAbrirComprovante(item)}
                 className="mr-2 bg-[#1e2e48] p-1.5 rounded-lg border border-emerald-500/50 active:bg-emerald-600 justify-center items-center"
               >
                 <Ionicons name="checkmark-sharp" size={16} color="#22C55E" />

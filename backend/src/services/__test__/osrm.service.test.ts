@@ -70,17 +70,19 @@ describe("Serviço OSRM (osrm.service.ts)", () => {
       expect(resultado[2].ordem).toBe(3);
     });
 
-    it("Deve disparar erro se a API do OSRM não retornar 'Ok'", async () => {
+    it("Deve realizar fallback local seguro se a API do OSRM não retornar 'Ok'", async () => {
       mockedAxios.get.mockResolvedValueOnce({
         data: { code: "NoTrips" },
       });
 
-      await expect(
-        otimizarSequencia([
-          { lat: -28.1, lon: -54.1, enderecoOriginal: "Ponto A" },
-          { lat: -28.2, lon: -54.2, enderecoOriginal: "Ponto B" },
-        ]),
-      ).rejects.toThrow("Erro na otimização da rota: Falha ao calcular rota no OSRM.");
+      const resultado = await otimizarSequencia([
+        { lat: -28.1, lon: -54.1, enderecoOriginal: "Ponto A" },
+        { lat: -28.2, lon: -54.2, enderecoOriginal: "Ponto B" },
+      ]);
+
+      expect(resultado).toHaveLength(2);
+      expect(resultado[0].endereco).toBe("Ponto A");
+      expect(resultado[1].endereco).toBe("Ponto B");
     });
   });
 

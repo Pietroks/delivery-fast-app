@@ -55,14 +55,26 @@ describe("Utilitário: navigation (abrirRotaGoogleMaps e calcularLotes)", () => 
     expect(Linking.openURL).toHaveBeenCalledWith(expect.stringContaining("destination=Rua%20Teste%2C%2012"));
   });
 
-  test("Deve priorizar coordenadas lat,lon precisas quando disponíveis", async () => {
+  test("Deve usar coordenadas quando rua não for informada", async () => {
     await abrirRotaGoogleMaps([
-      { rua: "Rua 1", lat: -28.298, lon: -54.263 },
-      { rua: "Rua 2", lat: -28.299, lon: -54.264 },
+      { rua: "", lat: -28.298, lon: -54.263 },
+      { rua: "", lat: -28.299, lon: -54.264 },
     ]);
 
     expect(Linking.openURL).toHaveBeenCalledWith(
       expect.stringContaining("destination=-28.299,-54.264&travelmode=driving&waypoints=-28.298,-54.263"),
+    );
+  });
+
+  test("Deve codificar múltiplos waypoints com %7C e limpar sufixo de CEP", async () => {
+    await abrirRotaGoogleMaps([
+      { rua: "Rua Marquês do Herval, 90 - CEP: 98800-000" },
+      { rua: "Mal. Floriano, 100 - CEP: 98800-111" },
+      { rua: "Av. Brasil, 500" },
+    ]);
+
+    expect(Linking.openURL).toHaveBeenCalledWith(
+      expect.stringContaining("destination=Av.%20Brasil%2C%20500&travelmode=driving&waypoints=Rua%20Marqu%C3%AAs%20do%20Herval%2C%2090%7CMal.%20Floriano%2C%20100"),
     );
   });
 });

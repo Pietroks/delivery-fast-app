@@ -1,18 +1,16 @@
 import React from "react";
-import { Alert, Platform } from "react-native";
+import { Platform } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, Feather } from "@expo/vector-icons";
 
 import HomeScreen from "../screens/HomeScreen";
-import NovaEntregaScreen from "../screens/NovaEntregaScreen";
 import HistoricoScreen from "../screens/HistoricoScreen";
 import { useAuth } from "../contexts/AuthContext";
+import { alertaApp } from "../contexts/AlertContext";
 
 export type TabParamList = {
   Inicio: undefined;
-  Entregas: undefined;
-  Rota: undefined;
   Historico: undefined;
   Mais: undefined;
 };
@@ -32,18 +30,6 @@ const TABS: TabConfig[] = [
     icon: ({ color, focused }) => <Ionicons name={focused ? "home" : "home-outline"} size={20} color={color} />,
   },
   {
-    name: "Entregas",
-    label: "Entregas",
-    component: NovaEntregaScreen,
-    icon: ({ color }) => <Feather name="box" size={20} color={color} />,
-  },
-  {
-    name: "Rota",
-    label: "Rota",
-    component: HomeScreen,
-    icon: ({ color, focused }) => <MaterialCommunityIcons name={focused ? "map-marker-path" : "routes"} size={20} color={color} />,
-  },
-  {
     name: "Historico",
     label: "Histórico",
     component: HistoricoScreen,
@@ -61,7 +47,7 @@ export default function TabNavigator() {
   const alturaCalculada = 60 + insets.bottom;
 
   const handleLogout = () => {
-    Alert.alert("Sair da conta", "Tem certeza que deseja sair?", [
+    alertaApp("Sair da conta", "Tem certeza que deseja sair?", [
       { text: "Cancelar", style: "cancel" },
       { text: "Sair", style: "destructive", onPress: async () => await signOut() },
     ]);

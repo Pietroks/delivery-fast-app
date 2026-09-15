@@ -16,6 +16,15 @@ import { Ionicons, Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Parada } from "../screens/HomeScreen";
+import { alertaApp } from "../contexts/AlertContext";
+
+export function formatarCpf(texto: string): string {
+  const digitos = (texto || "").replace(/\D/g, "").slice(0, 11);
+  if (digitos.length <= 3) return digitos;
+  if (digitos.length <= 6) return `${digitos.slice(0, 3)}.${digitos.slice(3)}`;
+  if (digitos.length <= 9) return `${digitos.slice(0, 3)}.${digitos.slice(3, 6)}.${digitos.slice(6)}`;
+  return `${digitos.slice(0, 3)}.${digitos.slice(3, 6)}.${digitos.slice(6, 9)}-${digitos.slice(9)}`;
+}
 
 export interface DadosComprovante {
   status: "entregue";
@@ -56,7 +65,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
     }
   }, [visivel, parada]);
 
-  // PanResponder para o Canvas de Assinatura Digital na tela
+  // PanResponder para o Canvas de Assinatura Digital na tela (suporte a múltiplos traços)
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -64,6 +73,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
       onPanResponderGrant: (evt: GestureResponderEvent) => {
         const { locationX, locationY } = evt.nativeEvent;
         tracoAtualRef.current = [{ x: locationX, y: locationY }];
+        setTracos((anteriores) => [...anteriores, { pontos: [{ x: locationX, y: locationY }] }]);
       },
       onPanResponderMove: (evt: GestureResponderEvent) => {
         const { locationX, locationY } = evt.nativeEvent;
@@ -71,10 +81,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
         setTracos((anteriores) => [...anteriores.slice(0, -1), { pontos: [...tracoAtualRef.current] }]);
       },
       onPanResponderRelease: () => {
-        if (tracoAtualRef.current.length > 0) {
-          setTracos((anteriores) => [...anteriores, { pontos: [...tracoAtualRef.current] }]);
-          tracoAtualRef.current = [];
-        }
+        tracoAtualRef.current = [];
       },
     }),
   ).current;
@@ -89,7 +96,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permissão da Câmera", "É necessário permitir o acesso à câmera para fotografar o comprovante.");
+        alertaApp("Permissão da Câmera", "É necessário permitir o acesso à câmera para fotografar o comprovante.");
         return;
       }
 
@@ -106,7 +113,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch {
-      Alert.alert("Erro", "Não foi possível abrir a câmera no momento.");
+      alertaApp("Erro", "Não foi possível abrir a câmera no momento.");
     }
   };
 
@@ -114,7 +121,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permissão da Galeria", "É necessário permitir o acesso às fotos para escolher um comprovante.");
+        alertaApp("Permissão da Galeria", "É necessário permitir o acesso às fotos para escolher um comprovante.");
         return;
       }
 
@@ -131,7 +138,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch {
-      Alert.alert("Erro", "Não foi possível abrir a galeria no momento.");
+      alertaApp("Erro", "Não foi possível abrir a galeria no momento.");
     }
   };
 
@@ -276,13 +283,15 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
                 </View>
 
                 <View className="mb-3">
-                  <Text className="text-[#94a3b8] text-xs font-medium mb-1">Documento (RG ou CPF) - opcional</Text>
+                  <Text className="text-[#94a3b8] text-xs font-medium mb-1">CPF do recebedor (opcional)</Text>
                   <TextInput
                     placeholderTextColor="#64748b"
                     className="bg-[#0b1320] border border-[#22334f] rounded-xl px-3.5 py-2.5 text-xs text-white"
-                    placeholder="Ex: 12.345.678-9"
+                    placeholder="000.000.000-00"
+                    keyboardType="numeric"
+                    maxLength={14}
                     value={documentoRecebedor}
-                    onChangeText={setDocumentoRecebedor}
+                    onChangeText={(texto) => setDocumentoRecebedor(formatarCpf(texto))}
                   />
                 </View>
 

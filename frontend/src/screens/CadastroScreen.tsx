@@ -5,6 +5,7 @@ import { supabase } from "../services/supabase";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AuthStackParamList } from "../navigation/RootNavigator";
+import { alertaApp } from "../contexts/AlertContext";
 
 export default function CadastroScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
@@ -13,21 +14,23 @@ export default function CadastroScreen() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmaSenha, setConfirmaSenha] = useState("");
+  const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [mostrarConfirmaSenha, setMostrarConfirmaSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
 
   const handleCadastro = async () => {
     if (!nome.trim() || !email.trim() || !senha || !confirmaSenha) {
-      Alert.alert("Atenção", "Preencha todos os campos para se cadastrar.");
+      alertaApp("Atenção", "Preencha todos os campos para se cadastrar.");
       return;
     }
 
     if (senha !== confirmaSenha) {
-      Alert.alert("Atenção", "As senhas não coincidem.");
+      alertaApp("Atenção", "As senhas não coincidem.");
       return;
     }
 
     if (senha.length < 6) {
-      Alert.alert("Atenção", "A senha deve ter pelo menos 6 caracteres.");
+      alertaApp("Atenção", "A senha deve ter pelo menos 6 caracteres.");
       return;
     }
 
@@ -46,14 +49,14 @@ export default function CadastroScreen() {
     setCarregando(false);
 
     if (error) {
-      Alert.alert("Erro no cadastro", error.message);
+      alertaApp("Erro no cadastro", error.message);
       return;
     }
 
     if (data.session) {
       return;
     } else {
-      Alert.alert("Cadastro Realizado", "Sua conta foi criada com sucesso! Você já pode fazer login.", [
+      alertaApp("Cadastro Realizado", "Sua conta foi criada com sucesso! Você já pode fazer login.", [
         { text: "OK", onPress: () => navigation.navigate("Login") },
       ]);
     }
@@ -121,11 +124,18 @@ export default function CadastroScreen() {
                 className="flex-1 text-white ml-3"
                 placeholder="Mínimo de 6 caracteres"
                 placeholderTextColor="#475569"
-                secureTextEntry
+                secureTextEntry={!mostrarSenha}
                 value={senha}
                 onChangeText={setSenha}
                 editable={!carregando}
               />
+              <TouchableOpacity
+                onPress={() => setMostrarSenha(!mostrarSenha)}
+                className="p-2 -mr-2"
+                accessibilityLabel={mostrarSenha ? "Ocultar senha" : "Ver senha"}
+              >
+                <Ionicons name={mostrarSenha ? "eye-off-outline" : "eye-outline"} size={20} color="#94a3b8" />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -137,11 +147,18 @@ export default function CadastroScreen() {
                 className="flex-1 text-white ml-3"
                 placeholder="Repita a senha"
                 placeholderTextColor="#475569"
-                secureTextEntry
+                secureTextEntry={!mostrarConfirmaSenha}
                 value={confirmaSenha}
                 onChangeText={setConfirmaSenha}
                 editable={!carregando}
               />
+              <TouchableOpacity
+                onPress={() => setMostrarConfirmaSenha(!mostrarConfirmaSenha)}
+                className="p-2 -mr-2"
+                accessibilityLabel={mostrarConfirmaSenha ? "Ocultar confirmação de senha" : "Ver confirmação de senha"}
+              >
+                <Ionicons name={mostrarConfirmaSenha ? "eye-off-outline" : "eye-outline"} size={20} color="#94a3b8" />
+              </TouchableOpacity>
             </View>
           </View>
 

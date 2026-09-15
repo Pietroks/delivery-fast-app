@@ -109,4 +109,17 @@ describe("Tela: LoginScreen", () => {
 
     expect(mockNavigate).toHaveBeenCalledWith("Cadastro");
   });
+
+  test("Deve alternar a visibilidade da senha ao clicar no ícone do olho", () => {
+    const { getByPlaceholderText, getByLabelText } = render(<LoginScreen />);
+    const input = getByPlaceholderText("••••••••");
+    expect(input.props.secureTextEntry).toBe(true);
+
+    const toggleBtn = getByLabelText("Ver senha");
+    fireEvent.press(toggleBtn);
+    expect(input.props.secureTextEntry).toBe(false);
+
+    fireEvent.press(getByLabelText("Ocultar senha"));
+    expect(input.props.secureTextEntry).toBe(true);
+  });
 });

@@ -15,6 +15,7 @@ import { FechamentoTurnoModal } from "../components/FechamentoTurnoModal";
 import { carregarRotasLocalmente, salvarRotasLocalmente } from "../services/storage";
 import { useAuth } from "../contexts/AuthContext";
 import { obterLocalizacaoECidadeRapida } from "../services/location";
+import { alertaApp } from "../contexts/AlertContext";
 
 export interface Parada {
   id: string;
@@ -85,7 +86,7 @@ export default function HomeScreen() {
       setRotas(cacheLocal.paradas);
       setResumo(cacheLocal.resumo);
       if (cacheLocal.paradas.length > 0) {
-        Alert.alert("Modo offline", "Não foi possível conectar ao servidor. Exibindo a rota salva localmente.");
+        alertaApp("Modo offline", "Não foi possível conectar ao servidor. Exibindo a rota salva localmente.");
       }
     } finally {
       setCarregando(false);
@@ -100,7 +101,7 @@ export default function HomeScreen() {
 
   const handleOtimizarRota = useCallback(async () => {
     if (rotas.length === 0) {
-      Alert.alert("Atenção", "Cadastre pelo menos 1 entrega para otimizar a rota.");
+      alertaApp("Atenção", "Cadastre pelo menos 1 entrega para otimizar a rota.");
       return;
     }
 
@@ -131,15 +132,15 @@ export default function HomeScreen() {
       });
 
       if (response.data?.sucesso === false) {
-        Alert.alert("Erro", response.data?.erro || "Não foi possível otimizar a rota.");
+        alertaApp("Erro", response.data?.erro || "Não foi possível otimizar a rota.");
         return;
       }
 
       const mensagem = response.data?.mensagem || "Rota otimizada com sucesso!";
       await carregarEntregas();
-      Alert.alert("Sucesso", mensagem);
+      alertaApp("Sucesso", mensagem);
     } catch (error) {
-      Alert.alert("Erro", "Não foi possível otimizar a rota.");
+      alertaApp("Erro", "Não foi possível otimizar a rota.");
     } finally {
       setOtimizando(false);
     }
@@ -157,14 +158,14 @@ export default function HomeScreen() {
         await abrirRotaGoogleMaps(rotas, loteAtivoIndex);
       }
     } catch {
-      Alert.alert("Erro", "Não foi possível disparar a rota no GPS.");
+      alertaApp("Erro", "Não foi possível disparar a rota no GPS.");
     }
   }, [rotas, loteAtivoIndex]);
 
   const confirmarFinalizacaoLote = useCallback(
     async (idsConcluidos: string[]) => {
       if (idsConcluidos.length === 0) {
-        Alert.alert("Atenção", "Nenhuma entrega marcada para finalizar.");
+        alertaApp("Atenção", "Nenhuma entrega marcada para finalizar.");
         return;
       }
 
@@ -177,7 +178,7 @@ export default function HomeScreen() {
         setModalFechamentoAberto(true);
       } catch {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert("Erro", "Não foi possível finalizar as entregas.");
+        alertaApp("Erro", "Não foi possível finalizar as entregas.");
       } finally {
         setFinalizando(false);
       }
@@ -203,9 +204,6 @@ export default function HomeScreen() {
             <Text className="text-white text-lg font-bold">Olá, {nomeUsuario}!</Text>
             <Text className="text-[#94A3B8] text-xs">Pronto para otimizar suas entregas?</Text>
           </View>
-          <TouchableOpacity className="bg-[#152033] p-2.5 rounded-full border border-[#22334f]" accessibilityLabel="Notificações">
-            <Ionicons name="notifications-outline" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
         </View>
 
         <ResumoRotaCard resumo={resumo} fallbackTotalEntregas={rotas.length} />
