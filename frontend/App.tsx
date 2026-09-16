@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import "./global.css";
 import SplashScreen from "./src/components/SplashScreen";
 import Skeleton from "./src/components/Skeleton";
