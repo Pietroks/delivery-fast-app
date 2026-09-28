@@ -159,15 +159,11 @@ export default function HomeScreen() {
     }
 
     try {
-      const loteParaAbrir = temVariosLotes ? lotes[loteAtivoIndex] || rotas : rotas;
-      const gpsRapido = await obterLocalizacaoECidadeRapida();
-      const coordenadasPartida = gpsRapido.lat && gpsRapido.lon ? { lat: gpsRapido.lat, lon: gpsRapido.lon } : undefined;
-
-      await abrirRotaGoogleMaps(loteParaAbrir, coordenadasPartida);
+      await abrirRotaGoogleMaps(rotas, loteAtivoIndex);
     } catch {
       alertaApp("Erro", "Não foi possível abrir o Google Maps.");
     }
-  }, [rotas, lotes, temVariosLotes, loteAtivoIndex]);
+  }, [rotas, loteAtivoIndex]);
 
   const confirmarFinalizacaoLote = useCallback(
     async (idsSelecionados: string[]) => {
