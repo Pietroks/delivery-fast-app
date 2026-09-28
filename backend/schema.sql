@@ -36,12 +36,16 @@ CREATE INDEX IF NOT EXISTS idx_entregas_entregador_updated_at
 
 -- 3. Função e Trigger para Atualização Automática de 'updated_at'
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   NEW.updated_at = timezone('utc'::text, now());
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP TRIGGER IF EXISTS trigger_atualizar_updated_at ON public.entregas;
 CREATE TRIGGER trigger_atualizar_updated_at
@@ -52,7 +56,13 @@ CREATE TRIGGER trigger_atualizar_updated_at
 -- 4. Habilitação de Segurança por Nível de Linha (RLS - Row Level Security)
 ALTER TABLE public.entregas ENABLE ROW LEVEL SECURITY;
 
--- 5. Políticas de Acesso Isolado por Entregador (Multi-Tenancy)
+-- Limpeza de políticas permissivas legadas (evita alertas de segurança)
+DROP POLICY IF EXISTS "Permitir atualizacao anonima" ON public.entregas;
+DROP POLICY IF EXISTS "Permitir delecao anonima" ON public.entregas;
+DROP POLICY IF EXISTS "Permitir insercao anonima" ON public.entregas;
+DROP POLICY IF EXISTS "Permitir leitura anonima" ON public.entregas;
+
+-- 5. Políticas de Acesso Isolado por Entregador (Multi-Tenancy Seguro)
 DROP POLICY IF EXISTS "Entregador pode ler suas próprias entregas" ON public.entregas;
 CREATE POLICY "Entregador pode ler suas próprias entregas"
   ON public.entregas FOR SELECT
