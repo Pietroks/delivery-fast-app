@@ -73,7 +73,7 @@ const FormInput: React.FC<FormInputProps> = React.memo(
       <Text className="text-[#94a3b8] text-xs font-medium mb-1.5">{label}</Text>
       <TextInput
         placeholderTextColor="#64748b"
-        className={`bg-[#152033] border rounded-xl px-3.5 py-3 text-sm text-white ${error ? "border-red-500" : "border-[#22334F]"}`}
+        className={`bg-[#152033] border rounded-xl px-3.5 py-3 text-sm text-white ${error ? "border-red-500" : "border-[#22334f]"}`}
         placeholder={placeholder}
         value={value}
         onChangeText={onChangeText}
@@ -294,8 +294,14 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
 
       {/* Cabeçalho */}
       <View className="flex-row items-center my-3">
-        <TouchableOpacity onPress={handleVoltarAction} className="p-1 mr-3">
-          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+        <TouchableOpacity
+          onPress={handleVoltarAction}
+          className="p-1 mr-3"
+          accessibilityRole="button"
+          accessibilityLabel="Voltar para a tela anterior"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="arrow-back" size={22} color="#ffffff" />
         </TouchableOpacity>
         <Text className="text-white text-base font-bold flex-1 text-center mr-6">Nova entrega</Text>
       </View>
@@ -329,7 +335,7 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
 
             <TextInput
               placeholderTextColor="#64748b"
-              className="bg-[#152033] border border-[#22334F] rounded-xl px-3.5 py-3 text-sm text-white"
+              className="bg-[#152033] border border-[#22334f] rounded-xl px-3.5 py-3 text-sm text-white"
               placeholder="Ex: Sua Cidade"
               value={cidade}
               onChangeText={(texto) => {
@@ -375,14 +381,18 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
             onValueChange={setAdicionarARotaAtual}
             trackColor={{ false: "#152033", true: "#16a34a" }}
             thumbColor={adicionarARotaAtual ? "#22c55e" : "#94a3b8"}
+            accessibilityRole="switch"
+            accessibilityLabel="Adicionar à rota atual"
           />
         </View>
 
         {/* Botão de salvar */}
         <TouchableOpacity
-          className="bg-[#22c55e] py-3.5 rounded-xl items-center mt-4 mb-8 active:bg-emerald-600"
+          className="bg-[#22c55e] h-[52px] rounded-xl items-center justify-center mt-4 mb-8 active:bg-[#16a34a]"
           onPress={handleSalvarEntrega}
           disabled={carregando}
+          accessibilityRole="button"
+          accessibilityLabel="Salvar entrega"
         >
           {carregando ? (
             <View className="flex-row items-center gap-2">

@@ -34,12 +34,12 @@ export default function Skeleton() {
         <Animated.View style={{ opacity: opacityAnim }} className="w-10 h-10 bg-[#152033] rounded-full" />
       </View>
 
-      <Animated.View style={{ opacity: opacityAnim }} className="bg-[#152033] p-4 rounded-2xl border border-[#22334F] mb-4 h-28" />
+      <Animated.View style={{ opacity: opacityAnim }} className="bg-[#152033] p-4 rounded-xl border border-[#22334f] mb-4 h-28" />
 
       <Animated.View style={{ opacity: opacityAnim }} className="w-36 h-5 bg-[#152033] rounded-md mb-3" />
 
       {[1, 2, 3, 4].map((item) => (
-        <Animated.View key={item} style={{ opacity: opacityAnim }} className="bg-[#152033] h-16 mb-2.5 border border-[#22334f]" />
+        <Animated.View key={item} style={{ opacity: opacityAnim }} className="bg-[#152033] h-16 mb-2.5 rounded-xl border border-[#22334f]" />
       ))}
     </SafeAreaView>
   );

@@ -6,13 +6,13 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   ScrollView,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { api } from "../services/api";
 import { getCidadeEmCache, obterLocalizacaoECidadeRapida } from "../services/location";
+import { alertaApp } from "../contexts/AlertContext";
 
 interface ImportarLoteModalProps {
   visivel: boolean;
@@ -133,7 +133,7 @@ export const ImportarLoteModal: React.FC<ImportarLoteModalProps> = ({
 
   const handleImportar = async () => {
     if (paradasDetectadas.length === 0) {
-      Alert.alert("Atenção", "Cole pelo menos uma linha de endereço válida.");
+      alertaApp("Atenção", "Cole pelo menos uma linha de endereço válida.");
       return;
     }
 
@@ -156,14 +156,14 @@ export const ImportarLoteModal: React.FC<ImportarLoteModalProps> = ({
       setTexto("");
       onImportadoComSucesso();
       onFechar();
-      Alert.alert(
+      alertaApp(
         "Sucesso",
         response.data?.mensagem || `${paradasDetectadas.length} entregas importadas com sucesso!`,
       );
     } catch (error: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const mensagemErro = error.response?.data?.erro || "Falha ao importar o lote de entregas.";
-      Alert.alert("Erro", mensagemErro);
+      alertaApp("Erro", mensagemErro);
     } finally {
       setCarregando(false);
     }
@@ -177,12 +177,19 @@ export const ImportarLoteModal: React.FC<ImportarLoteModalProps> = ({
           <View className="flex-row items-center justify-between pb-3 border-b border-[#22334f]">
             <View className="flex-1 mr-2">
               <Text className="text-white text-base font-bold">Importar Lista de Entregas</Text>
-              <Text className="text-[#94A3B8] text-xs mt-0.5">
+              <Text className="text-[#94a3b8] text-xs mt-0.5">
                 Cole a lista de endereços do WhatsApp ou bloco de notas
               </Text>
             </View>
-            <TouchableOpacity onPress={onFechar} className="p-1" disabled={carregando}>
-              <Ionicons name="close" size={22} color="#94A3B8" />
+            <TouchableOpacity
+              onPress={onFechar}
+              className="p-1"
+              disabled={carregando}
+              accessibilityRole="button"
+              accessibilityLabel="Fechar modal"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={22} color="#94a3b8" />
             </TouchableOpacity>
           </View>
 
@@ -228,7 +235,13 @@ export const ImportarLoteModal: React.FC<ImportarLoteModalProps> = ({
               </View>
 
               {texto.length > 0 && (
-                <TouchableOpacity onPress={() => setTexto("")} disabled={carregando}>
+                <TouchableOpacity
+                  onPress={() => setTexto("")}
+                  disabled={carregando}
+                  accessibilityRole="button"
+                  accessibilityLabel="Limpar texto digitado"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
                   <Text className="text-[#94a3b8] text-xs">Limpar</Text>
                 </TouchableOpacity>
               )}
@@ -236,7 +249,7 @@ export const ImportarLoteModal: React.FC<ImportarLoteModalProps> = ({
 
             {/* Preview das primeiras 3 paradas */}
             {paradasDetectadas.length > 0 && (
-              <View className="mt-3 bg-[#0b1320]/60 p-2.5 rounded-xl border border-[#1e293b]">
+              <View className="mt-3 bg-[#0b1320]/60 p-2.5 rounded-xl border border-[#22334f]">
                 <Text className="text-[#64748b] text-[10px] font-bold mb-1 uppercase">Pré-visualização:</Text>
                 {paradasDetectadas.slice(0, 3).map((item, idx) => (
                   <Text key={idx} className="text-[#cbd5e1] text-[11px] py-0.5" numberOfLines={1}>
@@ -260,17 +273,21 @@ export const ImportarLoteModal: React.FC<ImportarLoteModalProps> = ({
             <TouchableOpacity
               onPress={onFechar}
               disabled={carregando}
-              className="flex-1 py-3.5 rounded-xl border border-[#22334f] items-center justify-center"
+              className="flex-1 h-[48px] rounded-xl border border-[#22334f] bg-[#1e2e48] items-center justify-center active:bg-[#152033]"
+              accessibilityRole="button"
+              accessibilityLabel="Cancelar importação"
             >
-              <Text className="text-[#94A3B8] font-bold text-xs">Cancelar</Text>
+              <Text className="text-[#94a3b8] font-bold text-xs">Cancelar</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={handleImportar}
               disabled={carregando || paradasDetectadas.length === 0}
-              className={`flex-1 py-3.5 rounded-xl items-center justify-center ${
-                paradasDetectadas.length > 0 ? "bg-[#22c55e] active:bg-emerald-600" : "bg-[#1e2e48] opacity-50"
+              className={`flex-1 h-[48px] rounded-xl items-center justify-center ${
+                paradasDetectadas.length > 0 ? "bg-[#22c55e] active:bg-[#16a34a]" : "bg-[#1e2e48] opacity-50"
               }`}
+              accessibilityRole="button"
+              accessibilityLabel="Importar entregas"
             >
               {carregando ? (
                 <View className="flex-row items-center gap-2">

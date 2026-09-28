@@ -62,13 +62,13 @@ export default function TabNavigator() {
         animation: "fade",
         tabBarStyle: {
           backgroundColor: "#152033",
-          borderTopColor: "#22334F",
+          borderTopColor: "#22334f",
           height: alturaCalculada,
           paddingBottom: paddingBottomCalculado,
           paddingTop: 8,
         },
         tabBarActiveTintColor: "#22c55e",
-        tabBarInactiveTintColor: "#94A3B8",
+        tabBarInactiveTintColor: "#94a3b8",
         tabBarLabelStyle: { fontSize: 10, fontWeight: "500" },
       }}
     >

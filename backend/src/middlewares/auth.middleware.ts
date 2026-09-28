@@ -1,9 +1,15 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { supabase } from "../services/supabase";
 
+declare module "fastify" {
+  interface FastifyRequest {
+    userId?: string;
+  }
+}
+
 export async function verificarToken(request: FastifyRequest, reply: FastifyReply) {
   if (process.env.NODE_ENV === "test") {
-    (request as any).userId = "entregador-teste-123";
+    request.userId = "entregador-teste-123";
     return;
   }
 
@@ -23,5 +29,5 @@ export async function verificarToken(request: FastifyRequest, reply: FastifyRepl
     return reply.status(401).send({ sucesso: false, erro: "Sessão inválida ou expirada. Faça login novamente." });
   }
 
-  (request as any).userId = data.user.id;
+  request.userId = data.user.id;
 }

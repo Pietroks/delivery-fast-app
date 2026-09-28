@@ -76,7 +76,9 @@ function calcularDistanciaRotaFallback(coords: { lat: number; lon: number }[]): 
   for (let i = 0; i < coords.length - 1; i++) {
     const p1 = coords[i];
     const p2 = coords[i + 1];
-    distanciaMetros += calcularDistanciaHaversineMetros(p1.lat, p1.lon, p2.lat, p2.lon) * 1.35;
+    if (p1 && p2) {
+      distanciaMetros += calcularDistanciaHaversineMetros(p1.lat, p1.lon, p2.lat, p2.lon) * 1.35;
+    }
   }
   const duracaoSegundos = Math.round(distanciaMetros / 6.94) + Math.max(0, coords.length - 1) * 180;
   return { distanciaMetros: Math.round(distanciaMetros), duracaoSegundos };
@@ -354,6 +356,7 @@ async function importarLoteHandler(request: FastifyRequest, reply: FastifyReply)
     const entregasProcessadas: any[] = [];
     for (let i = 0; i < entregas.length; i++) {
       const item = entregas[i];
+      if (!item) continue;
       const cidadeFinal = item.cidade || cidadePadrao || "";
       const coords = await geocodificarNoCadastro(
         item.rua,

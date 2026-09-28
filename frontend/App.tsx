@@ -9,22 +9,16 @@ import { AlertProvider } from "./src/contexts/AlertContext";
 
 export default function App() {
   const [carregandoSplash, setCarregandoSplash] = useState(true);
-  const [carregandoDados, setCarregandoDados] = useState(true);
 
   useEffect(() => {
     const timerSplash = setTimeout(() => {
       setCarregandoSplash(false);
-
-      setTimeout(() => {
-        setCarregandoDados(false);
-      }, 1500);
-    }, 2000);
+    }, 600);
 
     return () => clearTimeout(timerSplash);
   }, []);
 
   if (carregandoSplash) return <SplashScreen />;
-  if (carregandoDados) return <Skeleton />;
 
   return (
     <AuthProvider>

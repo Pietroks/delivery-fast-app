@@ -21,14 +21,11 @@ jest.mock("../../services/supabase", () => ({
   },
 }));
 
-// --- MOCKS VISUAIS (Resolve o erro 'got: undefined') ---
-jest.mock("@expo/vector-icons", () => {
-  const { Text } = require("react-native");
-  return {
-    Feather: () => <Text>Icon</Text>,
-    Ionicons: () => <Text>Icon</Text>,
-  };
-});
+// --- MOCKS VISUAIS ---
+jest.mock("@expo/vector-icons", () => ({
+  Feather: "Feather",
+  Ionicons: "Ionicons",
+}));
 
 jest.mock("react-native-safe-area-context", () => {
   const { View } = require("react-native");

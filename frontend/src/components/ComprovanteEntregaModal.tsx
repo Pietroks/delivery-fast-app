@@ -51,6 +51,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
   const [fotoUri, setFotoUri] = useState<string | null>(null);
   const [recebidoPor, setRecebidoPor] = useState("");
   const [documentoRecebedor, setDocumentoRecebedor] = useState("");
+  const [desenhando, setDesenhando] = useState(false);
   const [tracos, setTracos] = useState<Traço[]>([]);
   const tracoAtualRef = useRef<{ x: number; y: number }[]>([]);
 
@@ -61,6 +62,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
       setFotoUri(null);
       setTracos([]);
       tracoAtualRef.current = [];
+      setDesenhando(false);
       setAbaAtiva("foto");
     }
   }, [visivel, parada]);
@@ -71,6 +73,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (evt: GestureResponderEvent) => {
+        setDesenhando(true);
         const { locationX, locationY } = evt.nativeEvent;
         tracoAtualRef.current = [{ x: locationX, y: locationY }];
         setTracos((anteriores) => [...anteriores, { pontos: [{ x: locationX, y: locationY }] }]);
@@ -81,6 +84,11 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
         setTracos((anteriores) => [...anteriores.slice(0, -1), { pontos: [...tracoAtualRef.current] }]);
       },
       onPanResponderRelease: () => {
+        setDesenhando(false);
+        tracoAtualRef.current = [];
+      },
+      onPanResponderTerminate: () => {
+        setDesenhando(false);
         tracoAtualRef.current = [];
       },
     }),
@@ -187,8 +195,15 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
                 Parada #{parada.ordem}: {parada.rua}
               </Text>
             </View>
-            <TouchableOpacity onPress={onFechar} className="p-1" disabled={carregando}>
-              <Ionicons name="close" size={22} color="#94A3B8" />
+            <TouchableOpacity
+              onPress={onFechar}
+              className="p-1"
+              disabled={carregando}
+              accessibilityRole="button"
+              accessibilityLabel="Fechar comprovante"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={22} color="#94a3b8" />
             </TouchableOpacity>
           </View>
 
@@ -196,9 +211,11 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
           <View className="flex-row bg-[#0b1320] p-1 rounded-xl my-3 border border-[#22334f]">
             <TouchableOpacity
               onPress={() => setAbaAtiva("foto")}
-              className={`flex-1 py-2 rounded-lg flex-row justify-center items-center gap-1.5 ${
+              className={`flex-1 py-2.5 rounded-xl flex-row justify-center items-center gap-1.5 ${
                 abaAtiva === "foto" ? "bg-emerald-500/20 border border-emerald-500/40" : ""
               }`}
+              accessibilityRole="button"
+              accessibilityLabel="Aba Foto da Encomenda"
             >
               <Ionicons name="camera-outline" size={16} color={abaAtiva === "foto" ? "#22c55e" : "#94a3b8"} />
               <Text className={`text-xs font-bold ${abaAtiva === "foto" ? "text-emerald-400" : "text-[#94a3b8]"}`}>Foto da Encomenda</Text>
@@ -206,9 +223,11 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
 
             <TouchableOpacity
               onPress={() => setAbaAtiva("assinatura")}
-              className={`flex-1 py-2 rounded-lg flex-row justify-center items-center gap-1.5 ${
+              className={`flex-1 py-2.5 rounded-xl flex-row justify-center items-center gap-1.5 ${
                 abaAtiva === "assinatura" ? "bg-emerald-500/20 border border-emerald-500/40" : ""
               }`}
+              accessibilityRole="button"
+              accessibilityLabel="Aba Assinatura e Dados"
             >
               <Feather name="edit-3" size={15} color={abaAtiva === "assinatura" ? "#22c55e" : "#94a3b8"} />
               <Text className={`text-xs font-bold ${abaAtiva === "assinatura" ? "text-emerald-400" : "text-[#94a3b8]"}`}>
@@ -217,19 +236,21 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} className="max-h-80">
+          <ScrollView showsVerticalScrollIndicator={false} className="max-h-80" scrollEnabled={!desenhando}>
             {abaAtiva === "foto" ? (
               <View className="py-2">
                 {fotoUri ? (
                   <View className="items-center">
-                    <View className="w-full h-52 rounded-2xl overflow-hidden border border-emerald-500/40 bg-black">
+                    <View className="w-full h-52 rounded-xl overflow-hidden border border-emerald-500/40 bg-black">
                       <Image source={{ uri: fotoUri }} className="w-full h-full" resizeMode="cover" />
                     </View>
 
                     <View className="flex-row gap-3 mt-3 w-full">
                       <TouchableOpacity
                         onPress={tirarFoto}
-                        className="flex-1 bg-[#1e2e48] border border-[#22334f] py-2.5 rounded-xl flex-row items-center justify-center gap-1.5"
+                        className="flex-1 bg-[#1e2e48] border border-[#22334f] py-2.5 rounded-xl flex-row items-center justify-center gap-1.5 active:bg-[#152033]"
+                        accessibilityRole="button"
+                        accessibilityLabel="Tirar outra foto"
                       >
                         <Ionicons name="camera-reverse-outline" size={16} color="#38bdf8" />
                         <Text className="text-sky-400 text-xs font-semibold">Tirar Outra</Text>
@@ -237,7 +258,9 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
 
                       <TouchableOpacity
                         onPress={() => setFotoUri(null)}
-                        className="flex-1 bg-red-500/10 border border-red-500/30 py-2.5 rounded-xl flex-row items-center justify-center gap-1.5"
+                        className="flex-1 bg-red-500/10 border border-red-500/30 py-2.5 rounded-xl flex-row items-center justify-center gap-1.5 active:bg-red-500/20"
+                        accessibilityRole="button"
+                        accessibilityLabel="Remover foto"
                       >
                         <Ionicons name="trash-outline" size={16} color="#ef4444" />
                         <Text className="text-red-400 text-xs font-semibold">Remover Foto</Text>
@@ -249,7 +272,9 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
                     <TouchableOpacity
                       onPress={tirarFoto}
                       activeOpacity={0.7}
-                      className="bg-[#0b1320] border border-dashed border-emerald-500/40 p-6 rounded-2xl items-center justify-center"
+                      className="bg-[#0b1320] border border-dashed border-emerald-500/40 p-6 rounded-xl items-center justify-center active:bg-[#152033]"
+                      accessibilityRole="button"
+                      accessibilityLabel="Tirar foto do pacote"
                     >
                       <View className="w-12 h-12 rounded-full bg-emerald-500/10 items-center justify-center mb-2">
                         <Ionicons name="camera" size={24} color="#22c55e" />
@@ -261,7 +286,9 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
                     <TouchableOpacity
                       onPress={escolherDaGaleria}
                       activeOpacity={0.7}
-                      className="bg-[#152033] border border-[#22334f] p-3.5 rounded-xl flex-row items-center justify-center gap-2"
+                      className="bg-[#152033] border border-[#22334f] p-3.5 rounded-xl flex-row items-center justify-center gap-2 active:bg-[#1e2e48]"
+                      accessibilityRole="button"
+                      accessibilityLabel="Escolher foto da galeria"
                     >
                       <Ionicons name="images-outline" size={16} color="#38bdf8" />
                       <Text className="text-sky-400 text-xs font-semibold">Escolher da Galeria</Text>
@@ -300,7 +327,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
                   <View className="flex-row items-center justify-between mb-1">
                     <Text className="text-[#94a3b8] text-xs font-medium">Assinatura na Tela</Text>
                     {temAssinatura && (
-                      <TouchableOpacity onPress={limparAssinatura}>
+                      <TouchableOpacity onPress={limparAssinatura} accessibilityRole="button" accessibilityLabel="Limpar traço de assinatura">
                         <Text className="text-red-400 text-[11px] font-semibold">Limpar traço</Text>
                       </TouchableOpacity>
                     )}
@@ -308,7 +335,7 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
 
                   <View
                     {...panResponder.panHandlers}
-                    className="bg-[#0b1320] h-32 rounded-xl border border-dashed border-[#334155] justify-center items-center relative overflow-hidden"
+                    className="bg-[#0b1320] h-32 rounded-xl border border-dashed border-[#22334f] justify-center items-center relative overflow-hidden"
                   >
                     {!temAssinatura ? (
                       <Text className="text-[#475569] text-xs pointer-events-none">Peça para o cliente assinar com o dedo aqui</Text>
@@ -345,7 +372,9 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
             <TouchableOpacity
               onPress={handleConclusaoRapida}
               disabled={carregando}
-              className="flex-1 bg-[#1e2e48] border border-[#22334f] py-3.5 rounded-xl items-center justify-center active:bg-[#1e293b]"
+              className="flex-1 bg-[#1e2e48] border border-[#22334f] py-3.5 rounded-xl items-center justify-center active:bg-[#152033]"
+              accessibilityRole="button"
+              accessibilityLabel="Concluir Rápido"
             >
               <Text className="text-[#94a3b8] font-bold text-xs">Concluir Rápido</Text>
             </TouchableOpacity>
@@ -354,8 +383,10 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
               onPress={handleConfirmarComComprovante}
               disabled={carregando}
               className={`flex-1 py-3.5 rounded-xl items-center justify-center ${
-                temComprovante ? "bg-[#22c55e] active:bg-emerald-600" : "bg-emerald-700"
+                temComprovante ? "bg-[#22c55e] active:bg-[#16a34a]" : "bg-emerald-700 active:bg-emerald-800"
               }`}
+              accessibilityRole="button"
+              accessibilityLabel={temComprovante ? "Salvar com Comprovante" : "Confirmar Entrega"}
             >
               {carregando ? (
                 <View className="flex-row items-center gap-2">

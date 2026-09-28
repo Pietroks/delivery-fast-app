@@ -27,25 +27,37 @@ export function calcularDistanciaHaversineMetros(lat1: number, lon1: number, lat
 export function resolverTspLocal(pontos: PontoRota[]): PontoRota[] {
   if (pontos.length <= 2) return [...pontos];
 
+  const primeiro = pontos[0];
+  if (!primeiro) return [];
+
   // Nearest Neighbor partindo do ponto inicial (localização do motorista ou 1ª entrega)
-  const rota: PontoRota[] = [pontos[0]];
+  const rota: PontoRota[] = [primeiro];
   const naoVisitados = pontos.slice(1);
 
   while (naoVisitados.length > 0) {
     const ultimo = rota[rota.length - 1];
+    if (!ultimo) break;
+
     let menorDist = Infinity;
     let melhorIdx = 0;
 
     for (let i = 0; i < naoVisitados.length; i++) {
-      const dist = calcularDistanciaHaversineMetros(ultimo.lat, ultimo.lon, naoVisitados[i].lat, naoVisitados[i].lon);
+      const candidato = naoVisitados[i];
+      if (!candidato) continue;
+      const dist = calcularDistanciaHaversineMetros(ultimo.lat, ultimo.lon, candidato.lat, candidato.lon);
       if (dist < menorDist) {
         menorDist = dist;
         melhorIdx = i;
       }
     }
 
-    rota.push(naoVisitados[melhorIdx]);
-    naoVisitados.splice(melhorIdx, 1);
+    const escolhido = naoVisitados[melhorIdx];
+    if (escolhido) {
+      rota.push(escolhido);
+      naoVisitados.splice(melhorIdx, 1);
+    } else {
+      break;
+    }
   }
 
   // Refinamento 2-Opt mantendo o ponto inicial fixo
@@ -56,18 +68,22 @@ export function resolverTspLocal(pontos: PontoRota[]): PontoRota[] {
     iteracoes++;
 
     for (let i = 1; i < rota.length - 1; i++) {
+      const pPrev = rota[i - 1];
+      const pI = rota[i];
+      if (!pPrev || !pI) continue;
+
       for (let k = i + 1; k < rota.length; k++) {
+        const pK = rota[k];
+        const pNext = k + 1 < rota.length ? rota[k + 1] : undefined;
+        if (!pK) continue;
+
         const dAtual =
-          calcularDistanciaHaversineMetros(rota[i - 1].lat, rota[i - 1].lon, rota[i].lat, rota[i].lon) +
-          (k + 1 < rota.length
-            ? calcularDistanciaHaversineMetros(rota[k].lat, rota[k].lon, rota[k + 1].lat, rota[k + 1].lon)
-            : 0);
+          calcularDistanciaHaversineMetros(pPrev.lat, pPrev.lon, pI.lat, pI.lon) +
+          (pNext ? calcularDistanciaHaversineMetros(pK.lat, pK.lon, pNext.lat, pNext.lon) : 0);
 
         const dNova =
-          calcularDistanciaHaversineMetros(rota[i - 1].lat, rota[i - 1].lon, rota[k].lat, rota[k].lon) +
-          (k + 1 < rota.length
-            ? calcularDistanciaHaversineMetros(rota[i].lat, rota[i].lon, rota[k + 1].lat, rota[k + 1].lon)
-            : 0);
+          calcularDistanciaHaversineMetros(pPrev.lat, pPrev.lon, pK.lat, pK.lon) +
+          (pNext ? calcularDistanciaHaversineMetros(pI.lat, pI.lon, pNext.lat, pNext.lon) : 0);
 
         if (dNova < dAtual - 5) {
           const segmento = rota.slice(i, k + 1).reverse();

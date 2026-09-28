@@ -8,13 +8,13 @@ import {
   ActivityIndicator,
   TextInput,
   Share,
-  Alert,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
+import { alertaApp } from "../contexts/AlertContext";
 
 export const CHAVE_STORAGE_CONFIG_FECHAMENTO = "@delivery_fast:config_fechamento_v1";
 
@@ -108,7 +108,7 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
           setDados(response.data.relatorio);
         }
       } catch (error) {
-        Alert.alert("Erro", "Não foi possível carregar o relatório de fechamento.");
+        alertaApp("Erro", "Não foi possível carregar o relatório de fechamento.");
       } finally {
         setCarregando(false);
       }
@@ -139,7 +139,7 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await buscarRelatorio(configParaSalvar.taxaEntrega, configParaSalvar.diaria, configParaSalvar.valorKm);
     } catch {
-      Alert.alert("Erro", "Falha ao salvar as configurações.");
+      alertaApp("Erro", "Falha ao salvar as configurações.");
     } finally {
       setSalvandoConfig(false);
     }
@@ -232,11 +232,17 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
               </View>
               <View>
                 <Text className="text-white text-base font-bold">Fechamento de Turno</Text>
-                <Text className="text-[#94A3B8] text-xs">Resumo financeiro e operacional do dia</Text>
+                <Text className="text-[#94a3b8] text-xs">Resumo financeiro e operacional do dia</Text>
               </View>
             </View>
-            <TouchableOpacity onPress={onFechar} className="p-1">
-              <Ionicons name="close" size={22} color="#94A3B8" />
+            <TouchableOpacity
+              onPress={onFechar}
+              className="p-1"
+              accessibilityRole="button"
+              accessibilityLabel="Fechar fechamento de turno"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={22} color="#94a3b8" />
             </TouchableOpacity>
           </View>
 
@@ -267,7 +273,7 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
 
               {/* Painel de Edição de Configurações */}
               {editandoConfig && (
-                <View className="bg-[#0b1320] p-4 rounded-2xl border border-[#22334f] mb-4">
+                <View className="bg-[#0b1320] p-4 rounded-xl border border-[#22334f] mb-4">
                   <Text className="text-white text-xs font-bold mb-3">Definir seus valores de cobrança:</Text>
 
                   <View className="flex-row gap-3 mb-3">
@@ -322,7 +328,9 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
                   <TouchableOpacity
                     onPress={handleSalvarConfig}
                     disabled={salvandoConfig}
-                    className="bg-sky-500 py-2.5 rounded-xl items-center justify-center active:bg-sky-600"
+                    className="bg-[#38bdf8] py-2.5 rounded-xl items-center justify-center active:bg-sky-500"
+                    accessibilityRole="button"
+                    accessibilityLabel="Salvar configurações e recalcular"
                   >
                     {salvandoConfig ? (
                       <ActivityIndicator size="small" color="#000000" />
@@ -334,7 +342,7 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
               )}
 
               {/* Card Principal: Total Financeiro a Receber */}
-              <View className="bg-[#10242a] p-5 rounded-2xl border border-emerald-500/40 mb-4 items-center">
+              <View className="bg-emerald-500/10 p-5 rounded-xl border border-emerald-500/30 mb-4 items-center">
                 <Text className="text-[#94a3b8] text-xs font-semibold uppercase tracking-wider mb-1">
                   Total a Receber no Turno
                 </Text>
@@ -351,7 +359,7 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
               {/* Grid de 4 Indicadores Operacionais */}
               <View className="flex-row flex-wrap justify-between gap-2.5 mb-4">
                 {/* Paradas */}
-                <View className="bg-[#0b1320] p-3.5 rounded-2xl border border-[#22334f] w-[48%]">
+                <View className="bg-[#0b1320] p-3.5 rounded-xl border border-[#22334f] w-[48%]">
                   <View className="flex-row items-center mb-1">
                     <Ionicons name="checkmark-done-circle" size={16} color="#22c55e" />
                     <Text className="text-[#94a3b8] text-[11px] ml-1.5">Entregas</Text>
@@ -366,7 +374,7 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
                 </View>
 
                 {/* Km Rodados */}
-                <View className="bg-[#0b1320] p-3.5 rounded-2xl border border-[#22334f] w-[48%]">
+                <View className="bg-[#0b1320] p-3.5 rounded-xl border border-[#22334f] w-[48%]">
                   <View className="flex-row items-center mb-1">
                     <Ionicons name="speedometer-outline" size={16} color="#38bdf8" />
                     <Text className="text-[#94a3b8] text-[11px] ml-1.5">Km Percorridos</Text>
@@ -376,7 +384,7 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
                 </View>
 
                 {/* Horários do Turno */}
-                <View className="bg-[#0b1320] p-3.5 rounded-2xl border border-[#22334f] w-[48%]">
+                <View className="bg-[#0b1320] p-3.5 rounded-xl border border-[#22334f] w-[48%]">
                   <View className="flex-row items-center mb-1">
                     <Ionicons name="time-outline" size={16} color="#f59e0b" />
                     <Text className="text-[#94a3b8] text-[11px] ml-1.5">Tempo do Turno</Text>
@@ -390,7 +398,7 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
                 </View>
 
                 {/* Média por Parada */}
-                <View className="bg-[#0b1320] p-3.5 rounded-2xl border border-[#22334f] w-[48%]">
+                <View className="bg-[#0b1320] p-3.5 rounded-xl border border-[#22334f] w-[48%]">
                   <View className="flex-row items-center mb-1">
                     <Ionicons name="flash-outline" size={16} color="#a855f7" />
                     <Text className="text-[#94a3b8] text-[11px] ml-1.5">Média / Parada</Text>
@@ -404,7 +412,7 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
 
               {/* Lista de Insucessos / Devoluções (Se houver) */}
               {dados?.insucessos && dados.insucessos.length > 0 && (
-                <View className="bg-[#21160a] p-3.5 rounded-2xl border border-amber-500/40 mb-4">
+                <View className="bg-[#21160a] p-3.5 rounded-xl border border-amber-500/40 mb-4">
                   <View className="flex-row items-center mb-2">
                     <Ionicons name="alert-circle" size={16} color="#f59e0b" />
                     <Text className="text-amber-400 font-bold text-xs ml-1.5">
@@ -412,7 +420,7 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
                     </Text>
                   </View>
                   {dados.insucessos.map((item, idx) => (
-                    <View key={item.id || idx} className="py-1 border-t border-[#3b2713] first:border-t-0">
+                    <View key={item.id || idx} className={`py-1 ${idx > 0 ? "border-t border-[#3b2713]" : ""}`}>
                       <Text className="text-white text-[11px] font-semibold" numberOfLines={1}>
                         • {item.rua}
                       </Text>
@@ -431,7 +439,9 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
             <TouchableOpacity
               onPress={handleEnviarWhatsApp}
               activeOpacity={0.8}
-              className="bg-emerald-500 py-3.5 rounded-xl flex-row items-center justify-center active:bg-emerald-600"
+              className="bg-[#22c55e] h-[48px] rounded-xl flex-row items-center justify-center active:bg-[#16a34a]"
+              accessibilityRole="button"
+              accessibilityLabel="Enviar acerto no WhatsApp"
             >
               <Ionicons name="logo-whatsapp" size={18} color="#000000" />
               <Text className="text-black font-bold text-xs ml-2">Enviar Acerto no WhatsApp</Text>
@@ -441,18 +451,22 @@ export const FechamentoTurnoModal: React.FC<FechamentoTurnoModalProps> = ({ visi
               <TouchableOpacity
                 onPress={handleCompartilharGeral}
                 activeOpacity={0.8}
-                className="flex-1 py-3 rounded-xl border border-[#22334f] bg-[#0b1320] flex-row items-center justify-center"
+                className="flex-1 h-[44px] rounded-xl border border-[#22334f] bg-[#0b1320] flex-row items-center justify-center active:bg-[#152033]"
+                accessibilityRole="button"
+                accessibilityLabel="Compartilhar acerto em outros aplicativos"
               >
                 <Ionicons name="share-social-outline" size={16} color="#94a3b8" />
-                <Text className="text-[#94A3B8] font-bold text-xs ml-2">Outros Apps</Text>
+                <Text className="text-[#94a3b8] font-bold text-xs ml-2">Outros Apps</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={onFechar}
                 activeOpacity={0.8}
-                className="flex-1 py-3 rounded-xl border border-[#22334f] items-center justify-center"
+                className="flex-1 h-[44px] rounded-xl border border-[#22334f] bg-[#1e2e48] items-center justify-center active:bg-[#152033]"
+                accessibilityRole="button"
+                accessibilityLabel="Fechar fechamento de turno"
               >
-                <Text className="text-[#94A3B8] font-bold text-xs">Fechar</Text>
+                <Text className="text-[#94a3b8] font-bold text-xs">Fechar</Text>
               </TouchableOpacity>
             </View>
           </View>

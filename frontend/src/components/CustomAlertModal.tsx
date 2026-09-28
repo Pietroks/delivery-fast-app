@@ -87,11 +87,11 @@ export default function CustomAlertModal({
               const isCancel = botao.style === 'cancel';
               const isDestructive = botao.style === 'destructive';
 
-              let btnBg = 'bg-[#22c55e] active:bg-emerald-600';
+              let btnBg = 'bg-[#22c55e] active:bg-[#16a34a]';
               let textCol = 'text-black font-bold';
 
               if (isCancel) {
-                btnBg = 'bg-[#1e2e48] border border-[#22334f] active:bg-[#253959]';
+                btnBg = 'bg-[#1e2e48] border border-[#22334f] active:bg-[#152033]';
                 textCol = 'text-[#94a3b8] font-semibold';
               } else if (isDestructive) {
                 btnBg = 'bg-red-500/20 border border-red-500/40 active:bg-red-500/30';
@@ -108,7 +108,9 @@ export default function CustomAlertModal({
                       await botao.onPress();
                     }
                   }}
-                  className={`flex-1 py-3 rounded-xl items-center justify-center ${btnBg}`}
+                  className={`flex-1 h-[48px] rounded-xl items-center justify-center ${btnBg}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={botao.text}
                 >
                   <Text className={`text-xs ${textCol}`}>{botao.text}</Text>
                 </TouchableOpacity>

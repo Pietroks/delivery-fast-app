@@ -1,4 +1,5 @@
-import { Linking, Alert } from "react-native";
+import { Linking } from "react-native";
+import { alertaApp } from "../contexts/AlertContext";
 
 export interface ParadaNavegacao {
   rua: string;
@@ -13,10 +14,6 @@ export function limparEnderecoParaMaps(endereco?: string): string {
 }
 
 export function formatarPontoMaps(parada: ParadaNavegacao): string | null {
-  const enderecoLimpo = limparEnderecoParaMaps(parada.rua);
-  if (enderecoLimpo.length > 0) {
-    return encodeURIComponent(enderecoLimpo);
-  }
   if (
     parada.lat !== undefined &&
     parada.lon !== undefined &&
@@ -26,6 +23,10 @@ export function formatarPontoMaps(parada: ParadaNavegacao): string | null {
     !isNaN(parada.lon)
   ) {
     return `${parada.lat},${parada.lon}`;
+  }
+  const enderecoLimpo = limparEnderecoParaMaps(parada.rua);
+  if (enderecoLimpo.length > 0) {
+    return encodeURIComponent(enderecoLimpo);
   }
   return null;
 }
@@ -47,7 +48,7 @@ export function calcularLotes<T>(itens: T[], tamanhoLote: number = LIMITE_MAXIMO
 
 export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[], loteIndex: number = 0) {
   if (!paradas || paradas.length === 0) {
-    Alert.alert("Atenção", "Nenhuma entrega cadastrada para iniciar a rota.");
+    alertaApp("Atenção", "Nenhuma entrega cadastrada para iniciar a rota.");
     return;
   }
 
@@ -68,7 +69,7 @@ export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[], loteIndex:
     const paradasParaNavegar = todosLotes[indexValido] || paradas.slice(0, LIMITE_MAXIMO_PARADAS);
 
     if (todosLotes.length > 1) {
-      Alert.alert(
+      alertaApp(
         "Lote de Entregas",
         `O Google Maps suporta até 10 paradas por vez. Traçando a rota do Lote ${indexValido + 1} de ${todosLotes.length} (${paradasParaNavegar.length} entregas).`,
       );
@@ -86,7 +87,7 @@ export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[], loteIndex:
       .join("%7C");
 
     if (!destinoFinal) {
-      Alert.alert("Erro", "Endereço de destino inválido.");
+      alertaApp("Erro", "Endereço de destino inválido.");
       return;
     }
 
@@ -99,6 +100,6 @@ export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[], loteIndex:
     await Linking.openURL(urlRota);
   } catch (error: unknown) {
     const mensagem = error instanceof Error ? error.message : "Não foi possível abrir o Google Maps.";
-    Alert.alert("Erro", mensagem);
+    alertaApp("Erro", mensagem);
   }
 }

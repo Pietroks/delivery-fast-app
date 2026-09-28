@@ -42,16 +42,23 @@ export const FinalizarRotaModal: React.FC<FinalizarRotaModalProps> = ({ visivel,
 
   return (
     <Modal visible={visivel} transparent animationType="slide" onRequestClose={onFechar}>
-      <View className="flex-1 justify-end bg-black/70">
+      <View className="flex-1 justify-end bg-black/75">
         <View className="bg-[#152033] rounded-t-3xl border-t border-[#22334f] p-5 max-h-[85%]">
           {/* Cabeçalho */}
           <View className="flex-row items-center justify-between pb-3 border-b border-[#22334f]">
             <View className="flex-1 mr-2">
               <Text className="text-white text-base font-bold">Finalizar Rota</Text>
-              <Text className="text-[#94A3B8] text-xs mt-0.5">Desmarque os pedidos que não puderam ser entregues</Text>
+              <Text className="text-[#94a3b8] text-xs mt-0.5">Desmarque os pedidos que não puderam ser entregues</Text>
             </View>
-            <TouchableOpacity onPress={onFechar} className="p-1" disabled={carregando}>
-              <Ionicons name="close" size={22} color="#94A3B8" />
+            <TouchableOpacity
+              onPress={onFechar}
+              className="p-1"
+              disabled={carregando}
+              accessibilityRole="button"
+              accessibilityLabel="Fechar modal"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={22} color="#94a3b8" />
             </TouchableOpacity>
           </View>
 
@@ -68,12 +75,15 @@ export const FinalizarRotaModal: React.FC<FinalizarRotaModalProps> = ({ visivel,
                   onPress={() => toggleItem(item.id)}
                   activeOpacity={0.7}
                   className={`flex-row items-center p-3 rounded-xl mb-2 border ${
-                    isChecked ? "bg-[#10242a] border-emerald-500/40" : "bg-[#0b1320] border-[#22334f] opacity-60"
+                    isChecked ? "bg-emerald-500/10 border-emerald-500/40" : "bg-[#0b1320] border-[#22334f] opacity-60"
                   }`}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: isChecked }}
+                  accessibilityLabel={`Entrega para ${item.rua}, ${isChecked ? "marcada como entregue" : "desmarcada"}`}
                 >
                   <View
                     className={`w-6 h-6 rounded-lg mr-3 items-center justify-center border ${
-                      isChecked ? "bg-emerald-500 border-emerald-400" : "border-[#64748b]"
+                      isChecked ? "bg-[#22c55e] border-emerald-400" : "border-[#64748b]"
                     }`}
                   >
                     {isChecked && <Ionicons name="checkmark" size={16} color="#000000" />}
@@ -83,7 +93,7 @@ export const FinalizarRotaModal: React.FC<FinalizarRotaModalProps> = ({ visivel,
                     <Text className="text-white text-xs font-semibold" numberOfLines={1}>
                       {item.rua}
                     </Text>
-                    <Text className="text-[#94A3B8] text-[10px]">
+                    <Text className="text-[#94a3b8] text-[10px]">
                       {item.nomeDestinatario ? `${item.nomeDestinatario} • ` : ""}
                       {item.bairro || "Sem bairro"}
                     </Text>
@@ -102,15 +112,19 @@ export const FinalizarRotaModal: React.FC<FinalizarRotaModalProps> = ({ visivel,
             <TouchableOpacity
               onPress={onFechar}
               disabled={carregando}
-              className="flex-1 py-3 rounded-xl border border-[#22334f] items-center justify-center"
+              className="flex-1 h-[48px] rounded-xl border border-[#22334f] bg-[#1e2e48] items-center justify-center active:bg-[#152033]"
+              accessibilityRole="button"
+              accessibilityLabel="Cancelar finalização"
             >
-              <Text className="text-[#94A3B8] font-bold text-xs">Cancelar</Text>
+              <Text className="text-[#94a3b8] font-bold text-xs">Cancelar</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={handleSalvar}
               disabled={carregando}
-              className="flex-1 bg-emerald-500 py-3 rounded-xl items-center justify-center active:bg-emerald-600"
+              className="flex-1 bg-[#22c55e] h-[48px] rounded-xl items-center justify-center active:bg-[#16a34a]"
+              accessibilityRole="button"
+              accessibilityLabel="Confirmar finalização de entregas"
             >
               {carregando ? (
                 <ActivityIndicator size="small" color="#000000" />

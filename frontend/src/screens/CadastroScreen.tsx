@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, StatusBar, ScrollView, SafeAreaView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, StatusBar, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { supabase } from "../services/supabase";
 import { useNavigation } from "@react-navigation/native";
@@ -71,108 +72,126 @@ export default function CadastroScreen() {
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           className="w-10 h-10 rounded-full bg-[#152033] border border-[#22334f] items-center justify-center active:bg-[#1e2e48]"
+          accessibilityRole="button"
+          accessibilityLabel="Voltar para a tela anterior"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Ionicons name="arrow-back" size={20} color="#94a3b8" />
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <View className="mb-8">
-          <Text className="text-white text-3xl font-bold tracking-tight">Criar Conta</Text>
-          <Text className="text-[#94a3b8] text-sm mt-2">Junte-se ao DeliveryFast e comece a otimizar suas rotas agora mesmo.</Text>
-        </View>
-
-        <View className="space-y-4 gap-4">
-          <View>
-            <Text className="text-[#94a3b8] text-xs font-bold mb-1.5 ml-1">Nome Completo</Text>
-            <View className="flex-row items-center bg-[#152033] border border-[#22334f] rounded-xl px-4 h-14">
-              <Feather name="user" size={20} color="#64748b" />
-              <TextInput
-                className="flex-1 text-white ml-3"
-                placeholder="Ex: João da Silva"
-                placeholderTextColor="#475569"
-                autoCapitalize="words"
-                value={nome}
-                onChangeText={setNome}
-                editable={!carregando}
-              />
-            </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1"
+      >
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View className="mb-8">
+            <Text className="text-white text-3xl font-bold tracking-tight">Criar Conta</Text>
+            <Text className="text-[#94a3b8] text-sm mt-2">Junte-se ao DeliveryFast e comece a otimizar suas rotas agora mesmo.</Text>
           </View>
 
-          <View>
-            <Text className="text-[#94a3b8] text-xs font-bold mb-1.5 ml-1">E-mail</Text>
-            <View className="flex-row items-center bg-[#152033] border border-[#22334f] rounded-xl px-4 h-14">
-              <Feather name="mail" size={20} color="#64748b" />
-              <TextInput
-                className="flex-1 text-white ml-3"
-                placeholder="motoboy@exemplo.com"
-                placeholderTextColor="#475569"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-                editable={!carregando}
-              />
+          <View className="space-y-4 gap-4">
+            <View>
+              <Text className="text-[#94a3b8] text-xs font-bold mb-1.5 ml-1">Nome Completo</Text>
+              <View className="flex-row items-center bg-[#152033] border border-[#22334f] rounded-xl px-4 h-14">
+                <Feather name="user" size={20} color="#64748b" />
+                <TextInput
+                  className="flex-1 text-white ml-3"
+                  placeholder="Ex: João da Silva"
+                  placeholderTextColor="#475569"
+                  autoCapitalize="words"
+                  value={nome}
+                  onChangeText={setNome}
+                  editable={!carregando}
+                />
+              </View>
             </View>
-          </View>
 
-          <View>
-            <Text className="text-[#94a3b8] text-xs font-bold mb-1.5 ml-1">Senha</Text>
-            <View className="flex-row items-center bg-[#152033] border border-[#22334f] rounded-xl px-4 h-14">
-              <Feather name="lock" size={20} color="#64748b" />
-              <TextInput
-                className="flex-1 text-white ml-3"
-                placeholder="Mínimo de 6 caracteres"
-                placeholderTextColor="#475569"
-                secureTextEntry={!mostrarSenha}
-                value={senha}
-                onChangeText={setSenha}
-                editable={!carregando}
-              />
-              <TouchableOpacity
-                onPress={() => setMostrarSenha(!mostrarSenha)}
-                className="p-2 -mr-2"
-                accessibilityLabel={mostrarSenha ? "Ocultar senha" : "Ver senha"}
-              >
-                <Ionicons name={mostrarSenha ? "eye-off-outline" : "eye-outline"} size={20} color="#94a3b8" />
-              </TouchableOpacity>
+            <View>
+              <Text className="text-[#94a3b8] text-xs font-bold mb-1.5 ml-1">E-mail</Text>
+              <View className="flex-row items-center bg-[#152033] border border-[#22334f] rounded-xl px-4 h-14">
+                <Feather name="mail" size={20} color="#64748b" />
+                <TextInput
+                  className="flex-1 text-white ml-3"
+                  placeholder="motoboy@exemplo.com"
+                  placeholderTextColor="#475569"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={email}
+                  onChangeText={setEmail}
+                  editable={!carregando}
+                />
+              </View>
             </View>
-          </View>
 
-          <View>
-            <Text className="text-[#94a3b8] text-xs font-bold mb-1.5 ml-1">Confirmar Senha</Text>
-            <View className="flex-row items-center bg-[#152033] border border-[#22334f] rounded-xl px-4 h-14">
-              <Feather name="check-circle" size={20} color="#64748b" />
-              <TextInput
-                className="flex-1 text-white ml-3"
-                placeholder="Repita a senha"
-                placeholderTextColor="#475569"
-                secureTextEntry={!mostrarConfirmaSenha}
-                value={confirmaSenha}
-                onChangeText={setConfirmaSenha}
-                editable={!carregando}
-              />
-              <TouchableOpacity
-                onPress={() => setMostrarConfirmaSenha(!mostrarConfirmaSenha)}
-                className="p-2 -mr-2"
-                accessibilityLabel={mostrarConfirmaSenha ? "Ocultar confirmação de senha" : "Ver confirmação de senha"}
-              >
-                <Ionicons name={mostrarConfirmaSenha ? "eye-off-outline" : "eye-outline"} size={20} color="#94a3b8" />
-              </TouchableOpacity>
+            <View>
+              <Text className="text-[#94a3b8] text-xs font-bold mb-1.5 ml-1">Senha</Text>
+              <View className="flex-row items-center bg-[#152033] border border-[#22334f] rounded-xl px-4 h-14">
+                <Feather name="lock" size={20} color="#64748b" />
+                <TextInput
+                  className="flex-1 text-white ml-3"
+                  placeholder="Mínimo de 6 caracteres"
+                  placeholderTextColor="#475569"
+                  secureTextEntry={!mostrarSenha}
+                  value={senha}
+                  onChangeText={setSenha}
+                  editable={!carregando}
+                />
+                <TouchableOpacity
+                  onPress={() => setMostrarSenha(!mostrarSenha)}
+                  className="p-2 -mr-2"
+                  accessibilityRole="button"
+                  accessibilityLabel={mostrarSenha ? "Ocultar senha" : "Ver senha"}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name={mostrarSenha ? "eye-off-outline" : "eye-outline"} size={20} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
 
-          <TouchableOpacity
-            className={`h-14 rounded-xl items-center justify-center mt-6 ${
-              carregando ? "bg-emerald-800" : "bg-[#22c55e] active:bg-emerald-600"
-            }`}
-            onPress={handleCadastro}
-            disabled={carregando}
-          >
-            {carregando ? <ActivityIndicator color="#000000" /> : <Text className="text-black font-bold text-base">Cadastrar</Text>}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+            <View>
+              <Text className="text-[#94a3b8] text-xs font-bold mb-1.5 ml-1">Confirmar Senha</Text>
+              <View className="flex-row items-center bg-[#152033] border border-[#22334f] rounded-xl px-4 h-14">
+                <Feather name="check-circle" size={20} color="#64748b" />
+                <TextInput
+                  className="flex-1 text-white ml-3"
+                  placeholder="Repita a senha"
+                  placeholderTextColor="#475569"
+                  secureTextEntry={!mostrarConfirmaSenha}
+                  value={confirmaSenha}
+                  onChangeText={setConfirmaSenha}
+                  editable={!carregando}
+                />
+                <TouchableOpacity
+                  onPress={() => setMostrarConfirmaSenha(!mostrarConfirmaSenha)}
+                  className="p-2 -mr-2"
+                  accessibilityRole="button"
+                  accessibilityLabel={mostrarConfirmaSenha ? "Ocultar confirmação de senha" : "Ver confirmação de senha"}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name={mostrarConfirmaSenha ? "eye-off-outline" : "eye-outline"} size={20} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              className={`h-14 rounded-xl items-center justify-center mt-6 ${
+                carregando ? "bg-emerald-800" : "bg-[#22c55e] active:bg-[#16a34a]"
+              }`}
+              onPress={handleCadastro}
+              disabled={carregando}
+              accessibilityRole="button"
+              accessibilityLabel="Cadastrar"
+            >
+              {carregando ? <ActivityIndicator color="#000000" /> : <Text className="text-black font-bold text-base">Cadastrar</Text>}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

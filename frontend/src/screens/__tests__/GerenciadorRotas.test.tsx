@@ -4,6 +4,18 @@ import { Alert, Linking, TouchableOpacity, FlatList } from "react-native";
 import { api } from "../../services/api";
 import { GerenciadorRotas } from "../../components/GerenciadorRotas";
 
+const mockNavigate = jest.fn();
+jest.mock("@react-navigation/native", () => ({
+  useNavigation: () => ({
+    navigate: mockNavigate,
+  }),
+}));
+
+jest.mock("@expo/vector-icons", () => ({
+  Feather: "Feather",
+  Ionicons: "Ionicons",
+}));
+
 jest.mock("../../services/api", () => ({
   api: {
     put: jest.fn(),
@@ -33,31 +45,31 @@ describe("Componente: GerenciadorRotas", () => {
     expect(getByText("Rua B, 200")).toBeTruthy();
   });
 
-  test("Deve abrir o modal de comprovante ao clicar no check", async () => {
-    const { UNSAFE_getAllByType, getByText } = render(
+  test("Deve abrir o modal de comprovante ao clicar em Concluir Entrega", async () => {
+    const { getAllByText, getByText } = render(
       <GerenciadorRotas paradas={mockParadas} onAtualizarLista={mockOnAtualizarLista} onReordenarLocal={mockOnReordenarLocal} />,
     );
 
-    const botoes = UNSAFE_getAllByType(TouchableOpacity);
-    // Clica no primeiro botão da primeira linha (Check verde)
-    fireEvent.press(botoes[0]);
+    const botoesConcluir = getAllByText("Concluir Entrega");
+    fireEvent.press(botoesConcluir[0]);
 
     await waitFor(() => {
-      // O modal de comprovante deve abrir
       expect(getByText("Comprovante de Entrega")).toBeTruthy();
     });
   });
 
-  test("Deve reordenar ao mover um item para baixo", async () => {
+  test("Deve abrir menu de opções e reordenar ao mover um item para baixo", async () => {
     (api.put as jest.Mock).mockResolvedValue({ data: { sucesso: true } });
 
-    const { UNSAFE_getAllByType } = render(
+    const { getAllByLabelText, getByText } = render(
       <GerenciadorRotas paradas={mockParadas} onAtualizarLista={mockOnAtualizarLista} onReordenarLocal={mockOnReordenarLocal} />,
     );
 
-    const botoes = UNSAFE_getAllByType(TouchableOpacity);
-    // O segundo TouchableOpacity da primeira linha é a seta para baixo (mover posição)
-    fireEvent.press(botoes[1]);
+    const botoesOpcoes = getAllByLabelText(/Opções da entrega/);
+    fireEvent.press(botoesOpcoes[0]);
+
+    const botaoMoverBaixo = getByText("Mover para baixo na rota");
+    fireEvent.press(botaoMoverBaixo);
 
     await waitFor(() => {
       expect(api.put).toHaveBeenCalledWith(
@@ -72,16 +84,18 @@ describe("Componente: GerenciadorRotas", () => {
     });
   });
 
-  test("Deve abrir modal de edição e salvar novo endereço", async () => {
+  test("Deve abrir modal de edição a partir do menu de opções e salvar novo endereço", async () => {
     (api.put as jest.Mock).mockResolvedValue({ data: { sucesso: true } });
 
-    const { getByPlaceholderText, getByText, UNSAFE_getAllByType } = render(
+    const { getAllByLabelText, getByPlaceholderText, getByText } = render(
       <GerenciadorRotas paradas={mockParadas} onAtualizarLista={mockOnAtualizarLista} onReordenarLocal={mockOnReordenarLocal} />,
     );
 
-    const botoes = UNSAFE_getAllByType(TouchableOpacity);
-    // Clica no botão de Lápis (Editar) da primeira parada
-    fireEvent.press(botoes[2]);
+    const botoesOpcoes = getAllByLabelText(/Opções da entrega/);
+    fireEvent.press(botoesOpcoes[0]);
+
+    const botaoEditar = getByText("Editar endereço");
+    fireEvent.press(botaoEditar);
 
     const inputEdicao = getByPlaceholderText("Digite o novo endereço");
     fireEvent.changeText(inputEdicao, "Rua A Alterada, 150");
@@ -97,17 +111,19 @@ describe("Componente: GerenciadorRotas", () => {
     });
   });
 
-  test("Deve exibir confirmação e excluir a entrega", async () => {
+  test("Deve exibir confirmação e excluir a entrega a partir do menu de opções", async () => {
     const spyAlert = jest.spyOn(Alert, "alert");
     (api.delete as jest.Mock).mockResolvedValue({ data: { sucesso: true } });
 
-    const { UNSAFE_getAllByType } = render(
+    const { getAllByLabelText, getByText } = render(
       <GerenciadorRotas paradas={mockParadas} onAtualizarLista={mockOnAtualizarLista} onReordenarLocal={mockOnReordenarLocal} />,
     );
 
-    const botoes = UNSAFE_getAllByType(TouchableOpacity);
-    // Clica no botão de Lixeira (Excluir) da primeira parada
-    fireEvent.press(botoes[3]);
+    const botoesOpcoes = getAllByLabelText(/Opções da entrega/);
+    fireEvent.press(botoesOpcoes[0]);
+
+    const botaoExcluir = getByText("Excluir parada da rota");
+    fireEvent.press(botaoExcluir);
 
     expect(spyAlert).toHaveBeenCalledWith("Excluir parada", 'Deseja remover "Rua A, 100" da rota?', expect.any(Array));
 
@@ -127,7 +143,7 @@ describe("Componente: GerenciadorRotas", () => {
     });
   });
 
-  test("Deve abrir WhatsApp ao clicar em Ligar", () => {
+  test("Deve abrir o discador telefônico nativo (tel:) ao clicar em Ligar", () => {
     const spyLinking = jest.spyOn(Linking, "openURL").mockResolvedValue(true as any);
     const mockParadasComTelefone = [{ id: "1", ordem: 1, rua: "Rua A, 100", lat: -28.298, lon: -54.263, telefone: "(55) 99999-8877" }];
 
@@ -138,7 +154,7 @@ describe("Componente: GerenciadorRotas", () => {
     const botaoLigar = getByText("Ligar");
     fireEvent.press(botaoLigar);
 
-    expect(spyLinking).toHaveBeenCalledWith(expect.stringContaining("whatsapp://send?phone=55999998877"));
+    expect(spyLinking).toHaveBeenCalledWith("tel:55999998877");
   });
 
   test("Deve abrir WhatsApp com mensagem predefinida ao clicar em WhatsApp", () => {
@@ -171,7 +187,6 @@ describe("Componente: GerenciadorRotas", () => {
 
     const flatList = UNSAFE_getByType(FlatList);
 
-    // Acessa a prop de refreshControl e dispara a função manualmente
     act(() => {
       flatList.props.refreshControl.props.onRefresh();
     });
@@ -190,14 +205,11 @@ describe("Componente: GerenciadorRotas", () => {
       />,
     );
 
-    // Clica no botão 'Comprovante' da primeira parada
-    const botoesComprovante = getAllByText("Comprovante");
-    fireEvent.press(botoesComprovante[0]);
+    const botoesConcluir = getAllByText("Concluir Entrega");
+    fireEvent.press(botoesConcluir[0]);
 
-    // O modal abre exibindo o título
     expect(getByText("Comprovante de Entrega")).toBeTruthy();
 
-    // Clica em 'Concluir Rápido' dentro do modal
     const botaoConcluirRapido = getByText("Concluir Rápido");
     fireEvent.press(botaoConcluirRapido);
 
@@ -210,5 +222,55 @@ describe("Componente: GerenciadorRotas", () => {
       );
       expect(mockOnAtualizarLista).toHaveBeenCalled();
     });
+  });
+
+  test("Deve exibir toast de Desfazer e restaurar a parada ao clicar em DESFAZER", async () => {
+    (api.put as jest.Mock).mockResolvedValue({ data: { sucesso: true } });
+
+    const { getAllByText, getByText, queryByText } = render(
+      <GerenciadorRotas
+        paradas={mockParadas}
+        onAtualizarLista={mockOnAtualizarLista}
+        onReordenarLocal={mockOnReordenarLocal}
+      />,
+    );
+
+    // Conclui a primeira parada
+    const botoesConcluir = getAllByText("Concluir Entrega");
+    fireEvent.press(botoesConcluir[0]);
+
+    const botaoConcluirRapido = getByText("Concluir Rápido");
+    fireEvent.press(botaoConcluirRapido);
+
+    // O toast de Desfazer deve aparecer na tela
+    await waitFor(() => {
+      expect(getByText("Entrega concluída!")).toBeTruthy();
+      expect(getByText("DESFAZER")).toBeTruthy();
+    });
+
+    // Clica no botão DESFAZER
+    const botaoDesfazer = getByText("DESFAZER");
+    fireEvent.press(botaoDesfazer);
+
+    await waitFor(() => {
+      // Deve chamar a API para reverter o status para "pendente"
+      expect(api.put).toHaveBeenCalledWith("/entregas/1/status", { status: "pendente" });
+      // A parada "Rua A, 100" volta a estar na tela
+      expect(getByText("Rua A, 100")).toBeTruthy();
+    });
+  });
+
+  test("Deve exibir banner informativo de Modo Offline quando isOffline for true", () => {
+    const { getByText } = render(
+      <GerenciadorRotas
+        paradas={mockParadas}
+        onAtualizarLista={mockOnAtualizarLista}
+        onReordenarLocal={mockOnReordenarLocal}
+        isOffline={true}
+      />,
+    );
+
+    expect(getByText("Modo Offline Ativo")).toBeTruthy();
+    expect(getByText(/salvas no aparelho/)).toBeTruthy();
   });
 });

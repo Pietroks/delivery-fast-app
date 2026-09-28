@@ -1,6 +1,7 @@
 # 🚚 Delivery Fast - Otimizador de Rotas e Gestão de Entregas
 
-[![Testes Automatizados](https://img.shields.io/badge/Testes-76%20Aprovados%20(100%25)-22c55e?style=for-the-badge&logo=vitest&logoColor=white)](https://github.com/Pietroks/delivery-fast-app)
+[![Testes Automatizados](https://img.shields.io/badge/Testes-87%20Aprovados%20(100%25)-22c55e?style=for-the-badge&logo=vitest&logoColor=white)](https://github.com/Pietroks/delivery-fast-app)
+[![Impeccable Critique](https://img.shields.io/badge/Impeccable%20Critique-40%2F40%20(Excelente)-22c55e?style=for-the-badge&logo=shield&logoColor=white)](https://github.com/Pietroks/delivery-fast-app)
 [![Expo SDK 57](https://img.shields.io/badge/Expo-SDK%2057-000000?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev)
 [![React Native 0.83](https://img.shields.io/badge/React%20Native-0.83-61dafb?style=for-the-badge&logo=react&logoColor=black)](https://reactnative.dev)
 [![Fastify 5](https://img.shields.io/badge/Fastify-5.11-000000?style=for-the-badge&logo=fastify&logoColor=white)](https://fastify.io)
@@ -23,8 +24,11 @@ Aplicativo mobile completo desenvolvido para entregadores e pequenos comércios 
   - Resumo financeiro diário com taxa por entrega configurável, diária fixa, valor por km e chave PIX salvas no aparelho (`AsyncStorage`).
   - Métricas operacionais consolidadas: entregas concluídas, devoluções com motivo, quilômetros rodados e tempo total em rota.
   - Envio instantâneo formatado com 1 clique para o WhatsApp do lojista/restaurante.
-- **[x] Resiliência Offline e Cache Ultra-Rápido**: Cache de rotas e GPS em memória com resposta em `<5ms`, eliminando travamentos de interface.
-- **[x] 76 Testes Automatizados**: 100% de sucesso em testes de frontend (Jest) e backend (Vitest).
+- **[x] Cockpit Tático de Pilotagem**: Interface escura de alto contraste para motos com alvos de toque $\ge 48\text{dp}$, endereço em 2 linhas sem truncamento, discador telefônico nativo integrado e menu seguro de paradas protegido contra toques acidentais.
+- **[x] Controle & Reversão Rápida ("Desfazer" de 5s)**: Toast tático flutuante que permite desfazer baixas ou remoções acidentais em 1 toque antes da confirmação definitiva.
+- **[x] Resiliência Offline & Indicador de GPS**: Monitoramento ativo de conectividade no painel com banner explicativo e garantia de persistência local das baixas no aparelho.
+- **[x] Hero Onboarding & Orientação de Lotes**: Experiência guiada no primeiro uso com Hero Card de importação direta do WhatsApp e modal educativo sobre o particionamento em lotes de 10 do Google Maps.
+- **[x] 87 Testes Automatizados**: 100% de sucesso em testes de frontend (60 no Jest em 10 suítes) e backend (27 no Vitest em 3 suítes).
 
 ---
 
@@ -39,16 +43,16 @@ Aplicativo mobile completo desenvolvido para entregadores e pequenos comércios 
 - **Expo Location (`~19.0.0`)** (Leitura rápida de GPS e geocodificação reversa)
 - **Expo Image Picker (`~17.0.0`)** (Captura de fotos de comprovante)
 - **AsyncStorage (`2.2.0`)** (Persistência local de cache e taxas)
-- **Jest (`~29.7.0`) & React Native Testing Library** (50 testes automatizados)
+- **Jest (`^29.7.0`) & React Native Testing Library** (60 testes automatizados em 10 suítes)
 
 ### **Backend (API REST)**
 - **Node.js** com **Fastify (`^5.11.2`)**
 - **TypeScript (`^7.0.2`)** com **TSX**
-- **Supabase JS (`^2.109.0`)** (PostgreSQL com RLS)
+- **Supabase JS (`^2.109.0`)** (PostgreSQL com RLS e script DDL oficial em `schema.sql`)
 - **Zod (`^4.4.3`)** (Validação rigorosa de contratos e payloads)
-- **OSRM (Open Source Routing Machine)** (Trip API para otimização de percurso)
+- **OSRM (Open Source Routing Machine)** (Trip API para otimização de percurso com fallback local)
 - **BrasilAPI & Nominatim** (Geocodificação estruturada sem custos de APIs pagas)
-- **Vitest (`^4.1.11`)** (26 testes automatizados)
+- **Vitest (`^4.1.11`)** (27 testes automatizados em 3 suítes)
 
 ---
 
@@ -57,20 +61,24 @@ Aplicativo mobile completo desenvolvido para entregadores e pequenos comércios 
 ```text
 delivery-fast-app/
 ├── backend/                    # Servidor Fastify & Integrações
+│   ├── schema.sql              # Script DDL oficial para o Supabase (Tabelas, RLS e Índices)
 │   ├── src/
+│   │   ├── middlewares/        # Autenticação JWT Supabase (auth.middleware.ts)
 │   │   ├── routes/             # Rotas Fastify (CRUD, Otimização, Fechamento de Turno)
 │   │   │   └── __tests__/      # Testes de integração de endpoints
 │   │   ├── schemas/            # Validações Zod (rotas.schema.ts)
-│   │   └── services/           # Supabase, OSRM Service e Geocodificação
+│   │   └── services/           # Supabase Client, OSRM Service e Geocodificação
 │   └── package.json
 ├── frontend/                   # Aplicativo Mobile React Native (Expo)
+│   ├── jest.setup.js           # Setup global de testes (mocks de storage e ícones)
+│   ├── patches/                # Patches de dependências via patch-package
 │   ├── src/
 │   │   ├── components/         # FechamentoTurnoModal, ComprovanteEntregaModal, GerenciadorRotas, etc.
 │   │   │   └── __tests__/      # Testes unitários de componentes
 │   │   ├── screens/            # HomeScreen, NovaEntregaScreen, HistoricoScreen, Login, Cadastro
 │   │   │   └── __tests__/      # Testes completos de telas e fluxos
 │   │   ├── services/           # Axios API, Cache de Storage e Serviço Rápido de Location
-│   │   └── utils/              # Particionamento de lotes do Google Maps
+│   │   └── utils/              # Particionamento de lotes do Google Maps e geocodificação
 │   └── package.json
 ├── docs/                       # Documentação técnica e comercial completa
 │   └── DOCUMENTACAO_COMPLETA.md
@@ -84,9 +92,15 @@ delivery-fast-app/
 ### Pré-requisitos
 - **Node.js** (v18 ou v20 recomendados)
 - **Git**
+- Conta no **Supabase** (PostgreSQL gratuito)
 - Celular físico com o aplicativo **Expo Go** (Android ou iOS)
 
-### 1. Iniciar o Servidor Backend
+### 1. Banco de Dados (Supabase)
+Execute o script [`backend/schema.sql`](backend/schema.sql) no **SQL Editor** do seu painel Supabase. Ele criará automaticamente a tabela `entregas`, ativará o **Row Level Security (RLS)** para isolar os dados de cada entregador e criará os índices de performance para consultas por data e status.
+
+---
+
+### 2. Iniciar o Servidor Backend
 
 ```bash
 cd backend
@@ -104,7 +118,7 @@ Execute os testes automatizados do backend:
 ```bash
 npm test
 ```
-*(Resultado esperado: 26 testes aprovados no Vitest)*
+*(Resultado esperado: 27 testes aprovados no Vitest em 3 suítes)*
 
 Inicie o servidor:
 ```bash
@@ -113,7 +127,7 @@ npm run dev
 
 ---
 
-### 2. Iniciar o Aplicativo Mobile (Frontend)
+### 3. Iniciar o Aplicativo Mobile (Frontend)
 
 Em outro terminal:
 ```bash
@@ -132,7 +146,7 @@ Execute os testes automatizados do frontend:
 ```bash
 npm test
 ```
-*(Resultado esperado: 50 testes em 10 suítes aprovados no Jest)*
+*(Resultado esperado: 56 testes em 10 suítes aprovados no Jest)*
 
 Inicie o Expo limpando o cache:
 ```bash

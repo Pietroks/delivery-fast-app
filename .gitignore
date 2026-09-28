@@ -13,3 +13,7 @@ backend/dist/
 *.env
 backend/.env
 frontend/.env
+
+# Agent/IDE local configs
+.claude/
+.gemini/

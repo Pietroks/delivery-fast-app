@@ -3,6 +3,16 @@ import { render, fireEvent, waitFor } from "@testing-library/react-native";
 import { ComprovanteEntregaModal, formatarCpf } from "../ComprovanteEntregaModal";
 import * as ImagePicker from "expo-image-picker";
 
+jest.mock("expo-image-picker", () => ({
+  requestCameraPermissionsAsync: jest.fn(() => Promise.resolve({ status: "granted" })),
+  launchCameraAsync: jest.fn(() => Promise.resolve({ canceled: true, assets: [] })),
+}));
+
+jest.mock("@expo/vector-icons", () => ({
+  Feather: "Feather",
+  Ionicons: "Ionicons",
+}));
+
 describe("Componente: ComprovanteEntregaModal", () => {
   const mockParada = {
     id: "p-1",

@@ -162,7 +162,9 @@ export default function HistoricoScreen() {
       <TouchableOpacity
         onPress={() => setModalFechamentoAberto(true)}
         activeOpacity={0.8}
-        className="bg-[#152033] p-3 rounded-2xl border border-emerald-500/30 mb-4 flex-row items-center justify-between active:bg-[#1a283f]"
+        className="bg-[#152033] p-3 rounded-xl border border-emerald-500/30 mb-4 flex-row items-center justify-between active:bg-[#1e2e48]"
+        accessibilityRole="button"
+        accessibilityLabel="Abrir relatório de fechamento do turno"
       >
         <View className="flex-row items-center">
           <View className="bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/20 mr-3">
@@ -187,7 +189,7 @@ export default function HistoricoScreen() {
           data={historico}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#22c55e" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#22c55e" colors={["#22c55e"]} />}
           ListEmptyComponent={
             <View className="items-center justify-center py-12">
               <Feather name="check-circle" size={36} color="#64748b" />
@@ -204,7 +206,9 @@ export default function HistoricoScreen() {
               <TouchableOpacity
                 onPress={() => setComprovanteSelecionado(item)}
                 activeOpacity={0.8}
-                className="bg-[#152033] p-3.5 rounded-xl mb-2.5 border border-[#22334f] active:bg-[#1a283f]"
+                className="bg-[#152033] p-3.5 rounded-xl mb-2.5 border border-[#22334f] active:bg-[#1e2e48]"
+                accessibilityRole="button"
+                accessibilityLabel={`Ver comprovante da entrega para ${item.rua}`}
               >
                 <View className="flex-row items-center">
                   <View className="mr-3 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/30">
@@ -230,7 +234,7 @@ export default function HistoricoScreen() {
 
                 {/* Badges de Comprovante anexado */}
                 {(temFoto || temAssinatura || dadosComp.doc) && (
-                  <View className="flex-row items-center gap-1.5 mt-2 pt-2 border-t border-[#1e293b]">
+                  <View className="flex-row items-center gap-1.5 mt-2 pt-2 border-t border-[#22334f]">
                     {temFoto && (
                       <View className="flex-row items-center bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded-md">
                         <Ionicons name="camera" size={11} color="#38bdf8" style={{ marginRight: 3 }} />
@@ -267,8 +271,14 @@ export default function HistoricoScreen() {
                 <Text className="text-white text-base font-bold">Comprovante de Entrega</Text>
                 <Text className="text-[#94a3b8] text-xs mt-0.5">Confirmação de recebimento registrada</Text>
               </View>
-              <TouchableOpacity onPress={() => setComprovanteSelecionado(null)} className="p-1">
-                <Ionicons name="close" size={22} color="#94A3B8" />
+              <TouchableOpacity
+                onPress={() => setComprovanteSelecionado(null)}
+                className="p-1"
+                accessibilityRole="button"
+                accessibilityLabel="Fechar comprovante"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={22} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
@@ -343,7 +353,9 @@ export default function HistoricoScreen() {
 
             <TouchableOpacity
               onPress={() => setComprovanteSelecionado(null)}
-              className="bg-[#1e2e48] border border-[#22334f] py-3 rounded-xl items-center justify-center mt-2"
+              className="bg-[#1e2e48] border border-[#22334f] py-3.5 rounded-xl items-center justify-center mt-2 active:bg-[#152033]"
+              accessibilityRole="button"
+              accessibilityLabel="Fechar detalhes do comprovante"
             >
               <Text className="text-white font-bold text-xs">Fechar</Text>
             </TouchableOpacity>

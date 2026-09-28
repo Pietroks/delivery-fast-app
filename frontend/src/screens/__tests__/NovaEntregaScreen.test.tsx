@@ -3,6 +3,17 @@ import { render, fireEvent, waitFor } from "@testing-library/react-native";
 import NovaEntregaScreen from "../NovaEntregaScreen";
 import { api } from "../../services/api";
 
+const mockGoBack = jest.fn();
+const mockNavigate = jest.fn();
+
+jest.mock("@react-navigation/native", () => ({
+  useNavigation: () => ({
+    goBack: mockGoBack,
+    navigate: mockNavigate,
+  }),
+  useFocusEffect: (cb: any) => cb(),
+}));
+
 jest.mock("../../services/api", () => ({
   api: {
     post: jest.fn(() => Promise.resolve({ data: { sucesso: true } })),
