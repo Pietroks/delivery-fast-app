@@ -6,6 +6,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { api } from "../services/api";
 import * as Location from "expo-location";
 import { obterLocalizacaoECidadeRapida, setCidadeEmCache, getCidadeEmCache } from "../services/location";
+import { buscarEnderecoPorCep } from "../services/cep";
 import { alertaApp } from "../contexts/AlertContext";
 
 interface NovaEntregaScreenProps {
@@ -111,6 +112,8 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
 
   const [adicionarARotaAtual, setAdicionarARotaAtual] = useState(true);
   const [carregando, setCarregando] = useState(false);
+  const [buscandoCep, setBuscandoCep] = useState(false);
+  const [buscandoLocal, setBuscandoLocal] = useState(false);
   const [cidadeDetectadaViaGPS, setCidadeDetectadaViaGPS] = useState(false);
 
   const coordsGpsRef = useRef<{ lat?: number; lon?: number }>({});
@@ -192,6 +195,31 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
     setTelefoneErro(validarCelular(telefone));
   }, [telefone]);
 
+  const consultarCepAutomatico = useCallback(async (cepValor: string) => {
+    const limpo = cepValor.replace(/\D/g, "");
+    if (limpo.length !== 8) return;
+
+    setBuscandoCep(true);
+    try {
+      const endereco = await buscarEnderecoPorCep(limpo);
+      if (endereco) {
+        if (endereco.rua) setRua(endereco.rua);
+        if (endereco.bairro) setBairro(endereco.bairro);
+        if (endereco.cidade) {
+          setCidade(endereco.cidade);
+          setCidadeEmCache(endereco.cidade);
+        }
+        if (endereco.lat && endereco.lon) {
+          coordsGpsRef.current = { lat: endereco.lat, lon: endereco.lon };
+        }
+      }
+    } catch {} finally {
+      if (mountedRef.current) {
+        setBuscandoCep(false);
+      }
+    }
+  }, []);
+
   const handleCepChange = useCallback(
     (texto: string) => {
       const formatado = formatarCep(texto);
@@ -199,14 +227,70 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
       if (cepTouched) {
         setCepErro(validarCep(formatado));
       }
+      const digitos = formatado.replace(/\D/g, "");
+      if (digitos.length === 8) {
+        consultarCepAutomatico(digitos);
+      }
     },
-    [cepTouched],
+    [cepTouched, consultarCepAutomatico],
   );
 
   const handleCepBlur = useCallback(() => {
     setCepTouched(true);
     setCepErro(validarCep(cep));
-  }, [cep]);
+    const digitos = cep.replace(/\D/g, "");
+    if (digitos.length === 8 && !rua) {
+      consultarCepAutomatico(digitos);
+    }
+  }, [cep, rua, consultarCepAutomatico]);
+
+  const handlePreencherComMeuLocal = useCallback(async () => {
+    if (buscandoLocal) return;
+    setBuscandoLocal(true);
+    try {
+      const servicoAtivo = await Location.hasServicesEnabledAsync();
+      if (!servicoAtivo) {
+        alertaApp("GPS Desativado", "Por favor, ative a localização do seu celular.");
+        return;
+      }
+
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        alertaApp("Permissão Necessária", "Permita o acesso à localização para preencher seu endereço atual.");
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      if (loc?.coords) {
+        const { latitude, longitude } = loc.coords;
+        coordsGpsRef.current = { lat: latitude, lon: longitude };
+
+        const resultados = await Location.reverseGeocodeAsync({ latitude, longitude });
+        if (resultados && resultados.length > 0) {
+          const end = resultados[0];
+          if (end.street) setRua(end.street);
+          if (end.streetNumber || end.name) setNumero(end.streetNumber || end.name || "");
+          if (end.district || end.subregion) setBairro(end.district || end.subregion || "");
+          const cidadeFinal = end.city || end.subregion || "";
+          if (cidadeFinal) {
+            setCidade(cidadeFinal);
+            setCidadeEmCache(cidadeFinal);
+            setCidadeDetectadaViaGPS(true);
+          }
+          if (end.postalCode) setCep(formatarCep(end.postalCode));
+          alertaApp("Local Detectado!", "Endereço preenchido com suas coordenadas de GPS.");
+        } else {
+          alertaApp("Aviso", "Não foi possível obter o nome da rua pelo GPS. Preencha manualmente.");
+        }
+      }
+    } catch {
+      alertaApp("Erro", "Falha ao obter localização do aparelho.");
+    } finally {
+      if (mountedRef.current) {
+        setBuscandoLocal(false);
+      }
+    }
+  }, [buscandoLocal]);
 
   const handleSalvarEntrega = useCallback(async () => {
     // 1. Trava síncrona imediata contra cliques múltiplos no botão
@@ -307,6 +391,26 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        {/* Botão de Preenchimento Rápido com GPS Atual */}
+        <TouchableOpacity
+          onPress={handlePreencherComMeuLocal}
+          disabled={buscandoLocal}
+          className="bg-[#152033] border border-emerald-500/40 p-3 rounded-xl flex-row items-center justify-center gap-2 mb-4 active:bg-[#1e2e48]"
+          accessibilityRole="button"
+          accessibilityLabel="Preencher endereço com meu local atual"
+        >
+          {buscandoLocal ? (
+            <ActivityIndicator size="small" color="#22c55e" />
+          ) : (
+            <>
+              <Ionicons name="navigate-circle-outline" size={18} color="#22c55e" />
+              <Text className="text-emerald-400 text-xs font-bold">
+                Preencher com meu local atual (GPS)
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+
         <FormInput label="Logradouro / Rua / Plus Code *" placeholder="Ex: Rua XV de Novembro" value={rua} onChangeText={setRua} />
 
         <View className="flex-row gap-3">
@@ -344,16 +448,29 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
               }}
             />
           </View>
-          <FormInput
-            label="CEP (opcional)"
-            placeholder="98800-000"
-            value={cep}
-            onChangeText={handleCepChange}
-            keyboardType="numeric"
-            classNameCustom="flex-1 mb-4"
-            error={cepTouched ? cepErro : ""}
-            onBlur={handleCepBlur}
-          />
+
+          <View className="flex-1 mb-4">
+            <View className="flex-row items-center justify-between mb-1.5">
+              <Text className="text-[#94a3b8] text-xs font-medium">CEP (opcional)</Text>
+              {buscandoCep && (
+                <View className="flex-row items-center gap-1">
+                  <ActivityIndicator size="small" color="#22c55e" />
+                  <Text className="text-emerald-400 text-[10px]">Buscando...</Text>
+                </View>
+              )}
+            </View>
+            <TextInput
+              placeholderTextColor="#64748b"
+              className={`bg-[#152033] border rounded-xl px-3.5 py-3 text-sm text-white ${cepTouched && cepErro ? "border-red-500" : "border-[#22334f]"}`}
+              placeholder="98800-000"
+              value={cep}
+              onChangeText={handleCepChange}
+              keyboardType="numeric"
+              accessibilityLabel="CEP (opcional)"
+              onBlur={handleCepBlur}
+            />
+            {cepTouched && cepErro ? <Text className="text-red-400 text-[10px] mt-1 ml-1">{cepErro}</Text> : null}
+          </View>
         </View>
 
         <FormInput

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Modal, View, Text, TouchableOpacity } from 'react-native';
+import React, { useEffect } from 'react';
+import { Modal, View, Text, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 export type TipoAlerta = 'sucesso' | 'erro' | 'aviso' | 'info';
@@ -38,6 +38,16 @@ export default function CustomAlertModal({
 }: CustomAlertModalProps) {
   const tipoFinal = tipo || deduzirTipo(titulo);
 
+  // Auto-fecha avisos de sucesso simples após 2.5 segundos para não travar a tela
+  useEffect(() => {
+    if (visivel && tipoFinal === 'sucesso' && (!botoes || botoes.length <= 1)) {
+      const timer = setTimeout(() => {
+        onFechar();
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [visivel, tipoFinal, botoes, onFechar]);
+
   const listaBotoes: AlertaBotao[] =
     botoes && botoes.length > 0
       ? botoes
@@ -74,51 +84,57 @@ export default function CustomAlertModal({
 
   return (
     <Modal visible={visivel} transparent animationType="fade" onRequestClose={onFechar}>
-      <View className="flex-1 bg-black/75 justify-center items-center px-6">
-        <View className="bg-[#152033] border border-[#22334f] rounded-2xl p-5 w-full max-w-sm items-center shadow-2xl">
-          {renderIcone()}
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={onFechar}
+        className="flex-1 bg-black/75 justify-center items-center px-6"
+      >
+        <TouchableWithoutFeedback>
+          <View className="bg-[#152033] border border-[#22334f] rounded-2xl p-5 w-full max-w-sm items-center shadow-2xl">
+            {renderIcone()}
 
-          <Text className="text-white font-bold text-base text-center mb-1">{titulo}</Text>
+            <Text className="text-white font-bold text-base text-center mb-1">{titulo}</Text>
 
-          {mensagem ? <Text className="text-[#94a3b8] text-xs text-center leading-5 mb-5">{mensagem}</Text> : <View className="mb-4" />}
+            {mensagem ? <Text className="text-[#94a3b8] text-xs text-center leading-5 mb-5">{mensagem}</Text> : <View className="mb-4" />}
 
-          <View className={`w-full ${listaBotoes.length > 1 ? 'flex-row gap-2' : ''}`}>
-            {listaBotoes.map((botao, idx) => {
-              const isCancel = botao.style === 'cancel';
-              const isDestructive = botao.style === 'destructive';
+            <View className={`w-full ${listaBotoes.length > 1 ? 'flex-row gap-2' : ''}`}>
+              {listaBotoes.map((botao, idx) => {
+                const isCancel = botao.style === 'cancel';
+                const isDestructive = botao.style === 'destructive';
 
-              let btnBg = 'bg-[#22c55e] active:bg-[#16a34a]';
-              let textCol = 'text-black font-bold';
+                let btnBg = 'bg-[#22c55e] active:bg-[#16a34a]';
+                let textCol = 'text-black font-bold';
 
-              if (isCancel) {
-                btnBg = 'bg-[#1e2e48] border border-[#22334f] active:bg-[#152033]';
-                textCol = 'text-[#94a3b8] font-semibold';
-              } else if (isDestructive) {
-                btnBg = 'bg-red-500/20 border border-red-500/40 active:bg-red-500/30';
-                textCol = 'text-red-400 font-bold';
-              }
+                if (isCancel) {
+                  btnBg = 'bg-[#1e2e48] border border-[#22334f] active:bg-[#152033]';
+                  textCol = 'text-[#94a3b8] font-semibold';
+                } else if (isDestructive) {
+                  btnBg = 'bg-red-500/20 border border-red-500/40 active:bg-red-500/30';
+                  textCol = 'text-red-400 font-bold';
+                }
 
-              return (
-                <TouchableOpacity
-                  key={idx}
-                  activeOpacity={0.8}
-                  onPress={async () => {
-                    onFechar();
-                    if (botao.onPress) {
-                      await botao.onPress();
-                    }
-                  }}
-                  className={`flex-1 h-[48px] rounded-xl items-center justify-center ${btnBg}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={botao.text}
-                >
-                  <Text className={`text-xs ${textCol}`}>{botao.text}</Text>
-                </TouchableOpacity>
-              );
-            })}
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    activeOpacity={0.8}
+                    onPress={async () => {
+                      onFechar();
+                      if (botao.onPress && botao.onPress !== onFechar) {
+                        await botao.onPress();
+                      }
+                    }}
+                    className={`flex-1 h-[48px] rounded-xl items-center justify-center ${btnBg}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={botao.text}
+                  >
+                    <Text className={`text-xs ${textCol}`}>{botao.text}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
-        </View>
-      </View>
+        </TouchableWithoutFeedback>
+      </TouchableOpacity>
     </Modal>
   );
 }

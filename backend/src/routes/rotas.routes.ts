@@ -222,6 +222,33 @@ async function geocodificarNoCadastro(
           return { lat: parseFloat(resEstruturado.data[0].lat), lon: parseFloat(resEstruturado.data[0].lon) };
         }
       } catch {}
+
+      // 1b. Fallback estruturado SEM número (no Brasil, >95% dos números de porta não estão mapeados no OSM)
+      if (numeroLimpo) {
+        try {
+          const paramsSemNumero: Record<string, any> = {
+            street: ruaOficial,
+            city: cidadeOficial,
+            country: "Brazil",
+            countrycodes: "br",
+            format: "json",
+            limit: 1,
+          };
+          if (viewboxParam) {
+            paramsSemNumero.viewbox = viewboxParam;
+            paramsSemNumero.bounded = 0;
+          }
+
+          const resSemNumero = await axios.get("https://nominatim.openstreetmap.org/search", {
+            params: paramsSemNumero,
+            headers: { "User-Agent": "DeliveryFastApp/1.0" },
+            timeout: 2500,
+          });
+          if (resSemNumero.data?.[0]) {
+            return { lat: parseFloat(resSemNumero.data[0].lat), lon: parseFloat(resSemNumero.data[0].lon) };
+          }
+        } catch {}
+      }
     }
 
     // 2. Tentativa com string completa higienizada
@@ -259,6 +286,27 @@ async function geocodificarNoCadastro(
         });
         if (res.data?.[0]) {
           return { lat: parseFloat(res.data[0].lat), lon: parseFloat(res.data[0].lon) };
+        }
+      } catch {}
+    }
+
+    // 4. Tentativa delimitada por viewbox do entregador (caso a cidade tenha variação de grafia no OSM)
+    if (viewboxParam && ruaOficial) {
+      try {
+        const resViewbox = await axios.get("https://nominatim.openstreetmap.org/search", {
+          params: {
+            q: `${ruaOficial}, Brasil`,
+            format: "json",
+            limit: 1,
+            countrycodes: "br",
+            viewbox: viewboxParam,
+            bounded: 1,
+          },
+          headers: { "User-Agent": "DeliveryFastApp/1.0" },
+          timeout: 2500,
+        });
+        if (resViewbox.data?.[0]) {
+          return { lat: parseFloat(resViewbox.data[0].lat), lon: parseFloat(resViewbox.data[0].lon) };
         }
       } catch {}
     }

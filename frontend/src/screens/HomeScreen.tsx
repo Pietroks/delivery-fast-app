@@ -103,6 +103,22 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, [carregarEntregas]);
 
+  const lotes = useMemo(() => calcularLotes(rotas), [rotas]);
+  const temVariosLotes = lotes.length > 1;
+
+  const handleIniciarRota = useCallback(async () => {
+    if (rotas.length === 0) {
+      alertaApp("Atenção", "Nenhuma rota para iniciar.");
+      return;
+    }
+
+    try {
+      await abrirRotaGoogleMaps(rotas, loteAtivoIndex);
+    } catch {
+      alertaApp("Erro", "Não foi possível abrir o Google Maps.");
+    }
+  }, [rotas, loteAtivoIndex]);
+
   const handleOtimizarRota = useCallback(async () => {
     if (rotas.length === 0) {
       alertaApp("Atenção", "Cadastre pelo menos 1 entrega para otimizar a rota.");
@@ -139,31 +155,33 @@ export default function HomeScreen() {
         return;
       }
 
-      const mensagem = response.data?.mensagem || "Rota otimizada com sucesso!";
       await carregarEntregas();
-      alertaApp("Sucesso", mensagem);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      alertaApp(
+        "Rota Otimizada!",
+        "Deseja iniciar a rota e traçar o trajeto no Google Maps agora?",
+        [
+          {
+            text: "Mais tarde",
+            style: "cancel",
+          },
+          {
+            text: "Iniciar no GPS",
+            style: "default",
+            onPress: () => {
+              handleIniciarRota();
+            },
+          },
+        ],
+        "sucesso",
+      );
     } catch (error) {
       alertaApp("Erro", "Não foi possível otimizar a rota.");
     } finally {
       setOtimizando(false);
     }
-  }, [rotas.length, carregarEntregas]);
-
-  const lotes = useMemo(() => calcularLotes(rotas), [rotas]);
-  const temVariosLotes = lotes.length > 1;
-
-  const handleIniciarRota = useCallback(async () => {
-    if (rotas.length === 0) {
-      alertaApp("Atenção", "Nenhuma rota para iniciar.");
-      return;
-    }
-
-    try {
-      await abrirRotaGoogleMaps(rotas, loteAtivoIndex);
-    } catch {
-      alertaApp("Erro", "Não foi possível abrir o Google Maps.");
-    }
-  }, [rotas, loteAtivoIndex]);
+  }, [rotas.length, carregarEntregas, handleIniciarRota]);
 
   const confirmarFinalizacaoLote = useCallback(
     async (idsSelecionados: string[]) => {
@@ -214,8 +232,8 @@ export default function HomeScreen() {
         {/* Card Resumo de Telemetria com Glanceability Solar */}
         <ResumoRotaCard resumo={resumo} fallbackTotalEntregas={rotas.length} isOffline={isOffline} />
 
-        {/* Subcabeçalho de Ações: Nova Entrega, Importar do WhatsApp e Otimizar Rota */}
-        <View className="flex-row items-center justify-between mb-3">
+        {/* Subcabeçalho de Ações: Nova Entrega e Importar da Lista */}
+        <View className="flex-row items-center justify-between mb-2.5">
           <Text className="text-white font-bold text-sm">Sua rota otimizada</Text>
 
           <View className="flex-row items-center gap-2">
@@ -240,28 +258,28 @@ export default function HomeScreen() {
               <Ionicons name="document-text-outline" size={14} color="#38bdf8" />
               <Text className="text-sky-400 text-xs font-semibold">Importar</Text>
             </TouchableOpacity>
-
-            {temRotas && (
-              <TouchableOpacity
-                onPress={handleOtimizarRota}
-                disabled={otimizando}
-                className="bg-[#1e2e48] border border-emerald-500/40 px-3.5 py-2 rounded-xl flex-row items-center gap-1.5 active:bg-emerald-900/30"
-                accessibilityRole="button"
-                accessibilityLabel="Otimizar Rota"
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-              >
-                {otimizando ? (
-                  <ActivityIndicator size="small" color="#22c55e" />
-                ) : (
-                  <>
-                    <Ionicons name="sparkles-outline" size={14} color="#22c55e" />
-                    <Text className="text-emerald-400 text-xs font-bold">Otimizar Rota</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
           </View>
         </View>
+
+        {/* Botão de Otimizar Rota - Largura Total Ergonômica (Zero risco de corte em telas estreitas) */}
+        {temRotas && (
+          <TouchableOpacity
+            onPress={handleOtimizarRota}
+            disabled={otimizando}
+            className="w-full bg-[#1e2e48] border border-emerald-500/40 h-[46px] rounded-xl flex-row items-center justify-center gap-2 mb-2.5 active:bg-emerald-900/30"
+            accessibilityRole="button"
+            accessibilityLabel="Otimizar Rota"
+          >
+            {otimizando ? (
+              <ActivityIndicator size="small" color="#22c55e" />
+            ) : (
+              <>
+                <Ionicons name="sparkles-outline" size={15} color="#22c55e" />
+                <Text className="text-emerald-400 text-xs font-bold">Otimizar Rota</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
 
         {/* Seletor de Lotes quando rota excede 10 paradas (Com Botão Educativo) */}
         {temVariosLotes && (
