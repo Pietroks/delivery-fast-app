@@ -8,6 +8,14 @@ import * as Location from "expo-location";
 import { obterLocalizacaoECidadeRapida, setCidadeEmCache, getCidadeEmCache } from "../services/location";
 import { buscarEnderecoPorCep } from "../services/cep";
 import { alertaApp } from "../contexts/AlertContext";
+import * as Haptics from "expo-haptics";
+
+interface SugestaoLocal {
+  id: string;
+  descricao: string;
+  principal: string;
+  secundario: string;
+}
 
 interface NovaEntregaScreenProps {
   onVoltar?: () => void;
@@ -116,17 +124,84 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
   const [buscandoLocal, setBuscandoLocal] = useState(false);
   const [cidadeDetectadaViaGPS, setCidadeDetectadaViaGPS] = useState(false);
 
+  const [sugestoes, setSugestoes] = useState<SugestaoLocal[]>([]);
+  const [buscandoSugestoes, setBuscandoSugestoes] = useState(false);
+
   const coordsGpsRef = useRef<{ lat?: number; lon?: number }>({});
+  const coordsEntregaRef = useRef<{ lat?: number; lon?: number }>({});
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
 
   useEffect(() => {
     return () => {
       mountedRef.current = false;
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
     };
+  }, []);
+
+  const handleRuaChange = useCallback((texto: string) => {
+    setRua(texto);
+    coordsEntregaRef.current = {};
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    if (texto.trim().length < 3) {
+      setSugestoes([]);
+      return;
+    }
+
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        setBuscandoSugestoes(true);
+        const params: Record<string, any> = { q: texto.trim() };
+        if (coordsGpsRef.current.lat && coordsGpsRef.current.lon) {
+          params.lat = coordsGpsRef.current.lat;
+          params.lon = coordsGpsRef.current.lon;
+        }
+        const response = await api.get("/locais/autocomplete", { params });
+        if (mountedRef.current && response.data?.sugestoes) {
+          setSugestoes(response.data.sugestoes);
+        }
+      } catch {
+        if (mountedRef.current) setSugestoes([]);
+      } finally {
+        if (mountedRef.current) setBuscandoSugestoes(false);
+      }
+    }, 350);
+  }, []);
+
+  const handleSelecionarSugestao = useCallback(async (sugestao: SugestaoLocal) => {
+    setSugestoes([]);
+    setRua(sugestao.principal || sugestao.descricao);
+
+    try {
+      const res = await api.get("/locais/detalhes", { params: { placeId: sugestao.id } });
+      if (res.data?.local) {
+        const loc = res.data.local;
+        if (loc.rua) setRua(loc.rua);
+        if (loc.numero) setNumero(loc.numero);
+        if (loc.bairro) setBairro(loc.bairro);
+        if (loc.cidade) {
+          setCidade(loc.cidade);
+          setCidadeDetectadaViaGPS(false);
+        }
+        if (loc.cep) setCep(formatarCep(loc.cep));
+        if (loc.lat && loc.lon) {
+          coordsEntregaRef.current = { lat: loc.lat, lon: loc.lon };
+        }
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch {}
   }, []);
 
   const limparFormulario = useCallback(() => {
     setRua("");
+    coordsEntregaRef.current = {};
+    setSugestoes([]);
     setNumero("");
     setBairro("");
     setCep("");
@@ -336,6 +411,8 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
         nomeDestinatario: nomeDestinatario.trim(),
         telefone: telefone.replace(/\D/g, ""),
         adicionarARotaAtual,
+        lat: coordsEntregaRef.current.lat,
+        lon: coordsEntregaRef.current.lon,
         latUsuario,
         lonUsuario,
       });
@@ -411,7 +488,62 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
           )}
         </TouchableOpacity>
 
-        <FormInput label="Logradouro / Rua / Plus Code *" placeholder="Ex: Rua XV de Novembro" value={rua} onChangeText={setRua} />
+        <View className="mb-4 z-10">
+          <View className="flex-row items-center justify-between mb-1.5">
+            <Text className="text-[#94a3b8] text-xs font-medium">Logradouro / Rua / Plus Code *</Text>
+            {buscandoSugestoes ? (
+              <View className="flex-row items-center gap-1">
+                <ActivityIndicator size="small" color="#38bdf8" />
+                <Text className="text-sky-400 text-[10px]">Buscando...</Text>
+              </View>
+            ) : coordsEntregaRef.current.lat ? (
+              <View className="flex-row items-center bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded-full">
+                <Ionicons name="checkmark-circle" size={11} color="#38bdf8" style={{ marginRight: 3 }} />
+                <Text className="text-sky-400 text-[10px] font-semibold">Local Preciso (Google)</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <TextInput
+            placeholderTextColor="#64748b"
+            className="bg-[#152033] border border-[#22334f] rounded-xl px-3.5 py-3 text-sm text-white"
+            placeholder="Ex: Rua XV de Novembro"
+            value={rua}
+            onChangeText={handleRuaChange}
+            accessibilityLabel="Logradouro / Rua / Plus Code *"
+          />
+
+          {/* Sugestões do Google Places */}
+          {sugestoes.length > 0 && (
+            <View className="mt-1 bg-[#152033] border border-[#22334f] rounded-xl overflow-hidden shadow-lg">
+              {sugestoes.map((item, idx) => (
+                <TouchableOpacity
+                  key={item.id || idx.toString()}
+                  onPress={() => handleSelecionarSugestao(item)}
+                  className={`p-3 flex-row items-center gap-2.5 active:bg-[#1e2e48] ${
+                    idx < sugestoes.length - 1 ? "border-b border-[#22334f]/50" : ""
+                  }`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Selecionar ${item.descricao}`}
+                >
+                  <View className="w-7 h-7 rounded-full bg-sky-500/15 items-center justify-center">
+                    <Ionicons name="location" size={15} color="#38bdf8" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-white text-xs font-semibold" numberOfLines={1}>
+                      {item.principal || item.descricao}
+                    </Text>
+                    {item.secundario ? (
+                      <Text className="text-[#94a3b8] text-[11px] mt-0.5" numberOfLines={1}>
+                        {item.secundario}
+                      </Text>
+                    ) : null}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
 
         <View className="flex-row gap-3">
           <FormInput

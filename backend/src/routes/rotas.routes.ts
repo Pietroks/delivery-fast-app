@@ -3,6 +3,11 @@ import { supabase } from "../services/supabase";
 import axios from "axios";
 import { otimizarSequencia, PontoRota, calcularDistanciaHaversineMetros } from "../services/osrm.service";
 import {
+  buscarSugestoesGoogle,
+  obterDetalhesLugar,
+  geocodificarTextoGoogle,
+} from "../services/googlePlaces.service";
+import {
   CriarEntregaInput,
   criarEntregaSchema,
   OtimizarRotaInput,
@@ -190,6 +195,15 @@ async function geocodificarNoCadastro(
       viewboxParam = `${lonUsuario - 0.45},${latUsuario + 0.45},${lonUsuario + 0.45},${latUsuario - 0.45}`;
     }
 
+    // 0. Prioridade Máxima: Google Places (New) com Viés de GPS
+    const buscaGoogle = `${ruaOficial}${numeroLimpo ? `, ${numeroLimpo}` : ""}${bairroOficial ? ` - ${bairroOficial}` : ""}${cidadeOficial ? `, ${cidadeOficial}` : ""}`;
+    try {
+      const googleRes = await geocodificarTextoGoogle(buscaGoogle, latUsuario, lonUsuario);
+      if (googleRes && googleRes.lat !== 0 && googleRes.lon !== 0) {
+        return { lat: googleRes.lat, lon: googleRes.lon };
+      }
+    } catch {}
+
     // 1. Tentativa estruturada no Nominatim (alta precisão com cidade/rua)
     if (cidadeOficial) {
       try {
@@ -337,7 +351,10 @@ async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply)
       `${body.rua}${body.numero ? `, ${body.numero}` : ""}${body.bairro ? ` - ${body.bairro}` : ""}${body.cidade ? `, ${body.cidade}` : ""}${body.cep ? ` - CEP: ${body.cep}` : ""}`;
     const agora = new Date();
     const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
-    const coords = await geocodificarNoCadastro(body.rua, body.numero, body.bairro, body.cidade, body.cep, body.latUsuario, body.lonUsuario);
+    const coords =
+      body.lat && body.lon && body.lat !== 0 && body.lon !== 0
+        ? { lat: body.lat, lon: body.lon }
+        : await geocodificarNoCadastro(body.rua, body.numero, body.bairro, body.cidade, body.cep, body.latUsuario, body.lonUsuario);
 
     // Calcula a próxima ordem sequencial para a nova entrega
     const proximaOrdem = await obterProximaOrdem(userId);
@@ -693,6 +710,31 @@ export async function rotasRoutes(app: FastifyInstance) {
   app.post("/api/v1/entregas/lote", importarLoteHandler);
   app.get("/api/v1/rotas/atual", listarRotaAtualHandler);
   app.post("/api/v1/rotas/otimizar", otimizarRotaHandler);
+
+  app.get("/api/v1/locais/autocomplete", async (request: FastifyRequest, reply: FastifyReply) => {
+    const { q, lat, lon } = (request.query as { q?: string; lat?: string; lon?: string }) || {};
+    if (!q || q.trim().length < 2) {
+      return reply.status(200).send({ sugestoes: [] });
+    }
+    const sugestoes = await buscarSugestoesGoogle(
+      q,
+      lat ? Number(lat) : undefined,
+      lon ? Number(lon) : undefined,
+    );
+    return reply.status(200).send({ sugestoes });
+  });
+
+  app.get("/api/v1/locais/detalhes", async (request: FastifyRequest, reply: FastifyReply) => {
+    const { placeId } = (request.query as { placeId?: string }) || {};
+    if (!placeId) {
+      return reply.status(400).send({ sucesso: false, erro: "placeId é obrigatório." });
+    }
+    const detalhes = await obterDetalhesLugar(placeId);
+    if (!detalhes) {
+      return reply.status(404).send({ sucesso: false, erro: "Local não encontrado." });
+    }
+    return reply.status(200).send({ sucesso: true, local: detalhes });
+  });
 
   app.delete("/api/v1/entregas/:id", async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const { id } = request.params;

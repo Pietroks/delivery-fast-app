@@ -56,6 +56,7 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    process.env.GOOGLE_MAPS_API_KEY = "test-api-key";
 
     mockSelect.mockReturnValue(mockQueryBuilder);
     mockInsert.mockReturnValue(mockQueryBuilder);
@@ -526,6 +527,70 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
     });
   });
 
+  describe("GET /api/v1/locais/autocomplete e /api/v1/locais/detalhes", () => {
+    it("GET /locais/autocomplete deve retornar sugestões de locais do Google", async () => {
+      mockedAxios.post.mockResolvedValueOnce({
+        data: {
+          suggestions: [
+            {
+              placePrediction: {
+                placeId: "place-123",
+                text: { text: "Rua Marquês do Herval, Santo Ângelo - RS" },
+                structuredFormat: {
+                  mainText: { text: "Rua Marquês do Herval" },
+                  secondaryText: { text: "Santo Ângelo - RS" },
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      const response = await app.inject({
+        method: "GET",
+        url: "/api/v1/locais/autocomplete?q=Marques&lat=-28.298&lon=-54.263",
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.sugestoes).toHaveLength(1);
+      expect(body.sugestoes[0].principal).toBe("Rua Marquês do Herval");
+      expect(body.sugestoes[0].id).toBe("place-123");
+    });
+
+    it("GET /locais/detalhes deve retornar coordenadas e endereço detalhado", async () => {
+      mockedAxios.get.mockResolvedValueOnce({
+        data: {
+          id: "place-123",
+          formattedAddress: "R. Marquês do Herval, 100 - Centro, Santo Ângelo - RS",
+          displayName: { text: "Rua Marquês do Herval" },
+          location: { latitude: -28.314, longitude: -54.261 },
+          addressComponents: [
+            { longText: "Rua Marquês do Herval", types: ["route"] },
+            { longText: "100", types: ["street_number"] },
+            { longText: "Centro", types: ["sublocality_level_1"] },
+            { longText: "Santo Ângelo", types: ["administrative_area_level_2"] },
+            { shortText: "RS", types: ["administrative_area_level_1"] },
+            { longText: "98801-640", types: ["postal_code"] },
+          ],
+        },
+      });
+
+      const response = await app.inject({
+        method: "GET",
+        url: "/api/v1/locais/detalhes?placeId=place-123",
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.sucesso).toBe(true);
+      expect(body.local.lat).toBe(-28.314);
+      expect(body.local.lon).toBe(-54.261);
+      expect(body.local.rua).toBe("Rua Marquês do Herval");
+      expect(body.local.cidade).toBe("Santo Ângelo");
+    });
+  });
+
   describe("normalizarNomeRua", () => {
     it("Deve expandir abreviações como Mal., Av., R., Dr. e corrigir Marques do Erval", () => {
       expect(normalizarNomeRua("Mal. Floriano")).toBe("Marechal Floriano");
@@ -536,3 +601,4 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
     });
   });
 });
+

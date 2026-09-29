@@ -17,6 +17,7 @@ jest.mock("@react-navigation/native", () => ({
 jest.mock("../../services/api", () => ({
   api: {
     post: jest.fn(() => Promise.resolve({ data: { sucesso: true } })),
+    get: jest.fn(() => Promise.resolve({ data: {} })),
   },
 }));
 
@@ -91,5 +92,53 @@ describe("Tela Completa: NovaEntregaScreen", () => {
     const { queryByText } = render(<NovaEntregaScreen />);
     expect(queryByText("Waze")).toBeNull();
     expect(queryByText("Google Maps")).toBeNull();
+  });
+
+  test("Deve exibir sugestões do Google Places e preencher endereço ao selecionar uma sugestão", async () => {
+    (api.get as jest.Mock)
+      .mockResolvedValueOnce({
+        data: {
+          sugestoes: [
+            {
+              id: "place-123",
+              descricao: "Rua Marquês do Herval, Santo Ângelo - RS",
+              principal: "Rua Marquês do Herval",
+              secundario: "Santo Ângelo - RS",
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          sucesso: true,
+          local: {
+            id: "place-123",
+            rua: "Rua Marquês do Herval",
+            numero: "100",
+            bairro: "Centro",
+            cidade: "Santo Ângelo",
+            cep: "98801-640",
+            lat: -28.314,
+            lon: -54.261,
+          },
+        },
+      });
+
+    const { getByPlaceholderText, getByText, findByText } = render(<NovaEntregaScreen />);
+
+    fireEvent.changeText(getByPlaceholderText("Ex: Rua XV de Novembro"), "Marques");
+
+    const sugestaoItem = await findByText("Rua Marquês do Herval");
+    expect(sugestaoItem).toBeTruthy();
+
+    fireEvent.press(sugestaoItem);
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith(
+        "/locais/detalhes",
+        expect.objectContaining({ params: { placeId: "place-123" } }),
+      );
+      expect(getByText("Local Preciso (Google)")).toBeTruthy();
+    });
   });
 });

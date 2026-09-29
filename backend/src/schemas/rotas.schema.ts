@@ -25,6 +25,8 @@ export const criarEntregaSchema = z.object({
   referencia: z.string().optional(),
   nomeDestinatario: z.string().optional(),
   telefone: z.string().optional(),
+  lat: z.number().optional(),
+  lon: z.number().optional(),
   latUsuario: z.number().optional(),
   lonUsuario: z.number().optional(),
   adicionarARotaAtual: z.boolean().default(true),
