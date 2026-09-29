@@ -17,12 +17,12 @@ adaptive
 
 O **Delivery Fast** existe para dar autonomia, economia de combustível e proteção jurídica ao entregador brasileiro, eliminando a dependência de papéis amassados e de plataformas caras com mensalidades abusivas.
 * **Sucesso para o entregador:** Economizar de 25% a 35% de combustível por turno, terminar as entregas mais cedo e receber o valor diário integral no PIX imediatamente após o expediente.
-* **Sucesso para o produto:** Ser a ferramenta de cabeceira do motoboy que opera 100% lisa, sem falhas de conexão, com GPS instantâneo e zero custo de APIs pagas de mapa.
+* **Sucesso para o produto:** Ser a ferramenta de cabeceira do motoboy que opera 100% lisa, sem falhas de conexão, com GPS instantâneo e custo operacional zero para roteamento e geocodificação (OSRM, Nominatim, BrasilAPI), complementado por auto-sugestão de endereços via Google Places API (New) dentro da cota gratuita de 298 buscas/dia.
 
 ## Positioning
 
 Diferente de sistemas de despacho logístico corporativos pesados (como Routeasy, Dlog ou plataformas SaaS com cobrança mensal) ou de soluções que cobram taxas por requisição da API do Google Maps Platform:
-* O **Delivery Fast** combina a malha viária aberta de altíssimo desempenho (**OSRM**, **BrasilAPI** e **Nominatim com bounding box**) para roteirização e geocodificação sem custos de API, com despacho automático de navegação em lotes sequenciais de 10 paradas diretamente para o app nativo do Google Maps já instalado no aparelho.
+* O **Delivery Fast** combina a malha viária aberta de altíssimo desempenho (**OSRM**, **BrasilAPI** e **Nominatim com bounding box**) para roteirização e geocodificação sem custos de API, com auto-sugestão preditiva de endereços via **Google Places API (New)** (cota gratuita com circuit breaker de 298 req/dia), e despacho automático de navegação em lotes sequenciais de 10 paradas diretamente para o app nativo do Google Maps já instalado no aparelho.
 * Integra comprovação física (POD: foto comprimida em Base64 e assinatura touch com trava de scroll) e fechamento financeiro imediato para o WhatsApp do lojista em um único fluxo móvel enxuto.
 
 ## Operating Context
@@ -46,7 +46,8 @@ Diferente de sistemas de despacho logístico corporativos pesados (como Routeasy
 * **Capacidades Confirmadas:**
   - Autenticação e Multi-Tenancy com isolamento rigoroso via Supabase Auth e PostgreSQL Row Level Security (RLS).
   - Parser inteligente de texto ("Colar Lista") com sanitização de pontuações de final de linha.
-  - Geocodificação híbrida e tolerante a abreviações brasileiras ("R.", "Av.", "Mal.", "Pres.").
+  - **Auto-sugestão preditiva de endereços** via Google Places API (New) com debounce de 350ms, locationBias por GPS e circuit breaker de 298 req/dia com reset automático à meia-noite.
+  - Geocodificação híbrida e tolerante a abreviações brasileiras ("R.", "Av.", "Mal.", "Pres."), com priorização de coordenadas precisas enviadas pelo frontend.
   - Otimização do Caixeiro Viajante (TSP) com fallback resiliente local Nearest-Neighbor + 2-Opt.
   - Particionamento e formatação de lotes para contornar o limite de 10 waypoints do Google Maps nativo.
   - Comprovante de entrega com foto, tela de desenho touch (`PanResponder`), bloqueio de scroll externo e máscara de CPF.
@@ -55,8 +56,8 @@ Diferente de sistemas de despacho logístico corporativos pesados (como Routeasy
 * **Restrições Técnicas:**
   - Aplicação 100% adaptativa desenvolvida em React Native 0.83 sob Expo SDK 57 (suporte equânime a Android e iOS).
   - Backend modular em Fastify 5 + TypeScript + Vitest.
-  - Arquitetura de qualidade com 83 testes automatizados (100% aprovados).
-  - Sem uso de APIs pagas do Google Cloud / Maps Platform para roteamento ou geocodificação no backend.
+  - Arquitetura de qualidade com 122 testes automatizados (100% aprovados).
+  - Roteamento e geocodificação via serviços públicos (OSRM, BrasilAPI, Nominatim) — custo zero. Auto-sugestão de endereços via Google Places API (New) dentro da cota gratuita (circuit breaker em 298 req/dia garante R$ 0 de custo).
 
 ## Brand Commitments
 
@@ -75,7 +76,7 @@ Diferente de sistemas de despacho logístico corporativos pesados (como Routeasy
   - [`docs/DOCUMENTACAO_COMPLETA.md`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/docs/DOCUMENTACAO_COMPLETA.md)
   - [`README.md`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/README.md)
 * **Métricas de Qualidade:**
-  - 83 testes automatizados passando (27 backend Vitest + 56 frontend Jest).
+  - 122 testes automatizados passando (33 backend Vitest + 89 frontend Jest).
 
 ## Product Principles
 

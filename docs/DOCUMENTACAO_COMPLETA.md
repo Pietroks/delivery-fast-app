@@ -1,7 +1,7 @@
 # 🚚 Delivery Fast - Manual Técnico Completo e Documentação de Arquitetura
 
 > **Versão do Sistema:** 1.0.0  
-> **Status da Qualidade:** 87/87 Testes Automatizados Aprovados (100%) | 0 Erros TypeScript  
+> **Status da Qualidade:** 122/122 Testes Automatizados Aprovados (100%) | 0 Erros TypeScript  
 > **Público-Alvo:** Desenvolvedores, Engenheiros de Software, Arquitetos de Soluções, Lojistas e Operadores Logísticos.
 
 ---
@@ -20,7 +20,7 @@
    - [3.3. Índices de Alta Performance](#33-índices-de-alta-performance)
    - [3.4. Trigger de Atualização Automática](#34-trigger-de-atualização-automática)
    - [3.5. Políticas de Segurança em Nível de Linha (Row Level Security - RLS)](#35-políticas-de-segurança-em-nível-de-linha-row-level-security---rls)
-4. [🔌 Referência Exaustiva da API REST (11 Endpoints)](#4--referência-exaustiva-da-api-rest-11-endpoints)
+4. [🔌 Referência Exaustiva da API REST (13 Endpoints)](#4--referência-exaustiva-da-api-rest-13-endpoints)
    - [4.1. Autenticação e Cabeçalhos Globais](#41-autenticação-e-cabeçalhos-globais)
    - [4.2. Catálogo Detalhado de Endpoints](#42-catálogo-detalhado-de-endpoints)
 5. [📱 Arquitetura Mobile, Componentes e Fluxo de Estado](#5--arquitetura-mobile-componentes-e-fluxo-de-estado)
@@ -28,7 +28,7 @@
    - [5.2. Estrutura de Navegação & Telas](#52-estrutura-de-navegação--telas)
    - [5.3. Modais e Componentes Especiais](#53-modais-e-componentes-especiais)
    - [5.4. Serviços e Utilitários de Alto Desempenho](#54-serviços-e-utilitários-de-alto-desempenho)
-6. [🧪 Engenharia de Qualidade e Arquitetura de Testes (87 Testes)](#6--engenharia-de-qualidade-e-arquitetura-de-testes-87-testes)
+6. [🧪 Engenharia de Qualidade e Arquitetura de Testes (122 Testes)](#6--engenharia-de-qualidade-e-arquitetura-de-testes-122-testes)
    - [6.1. Matriz de Cobertura de Testes](#61-matriz-de-cobertura-de-testes)
    - [6.2. Estratégia de Mocks & Resolução do Jest no React Native 0.83](#62-estratégia-de-mocks--resolução-do-jest-no-react-native-083)
    - [6.3. Execução dos Testes](#63-execução-dos-testes)
@@ -52,7 +52,7 @@
 O **Delivery Fast** é uma plataforma móvel e backend voltada para a gestão e otimização da logística de entrega de última milha (*last-mile delivery*). O sistema foi concebido especificamente para atender entregadores autônomos (motoboys, ciclistas e motoristas) e estabelecimentos comerciais de bairro (restaurantes, farmácias, distribuidoras e comércios eletrônicos locais).
 
 ### 1.1. Principais Dores Solucionadas
-* **Custo Proibitivo de APIs de Roteirização:** Softwares tradicionais dependem de APIs pagas por requisição (como Google Maps Directions/Distance Matrix), inviabilizando a operação de pequenos entregadores. O Delivery Fast utiliza uma malha baseada em **OSRM**, **BrasilAPI** e **Nominatim (OpenStreetMap)** com custo operacional zero.
+* **Custo Proibitivo de APIs de Roteirização:** Softwares tradicionais dependem de APIs pagas por requisição (como Google Maps Directions/Distance Matrix), inviabilizando a operação de pequenos entregadores. O Delivery Fast utiliza uma malha baseada em **OSRM**, **BrasilAPI** e **Nominatim (OpenStreetMap)** com custo operacional zero para roteamento e geocodificação, e complementa a experiência com **Google Places API (New)** para auto-sugestão preditiva de endereços dentro da cota gratuita (circuit breaker de 298 req/dia garante R$ 0,00 de custo mensal).
 * **Rotas Ineficientes e Gasto Excessivo de Combustível:** Entregadores costumam seguir a ordem de recebimento das comandas ou depender de intuição visual. A roteirização algorítmica do Delivery Fast reduz a quilometragem diária em 25% a 35%.
 * **Limite de Paradas na Navegação Nativa:** O aplicativo oficial do Google Maps suporta no máximo 10 pontos por rota. O Delivery Fast particiona automaticamente rotas extensas em lotes sequenciais navegáveis sem perda de continuidade.
 * **Extravios e Reclamações de "Não Recebido":** O sistema conta com captura digital de foto do pacote e assinatura biométrica vetorial diretamente na tela do smartphone, associada a nome e CPF do recebedor.
@@ -355,7 +355,7 @@ CREATE POLICY "Entregador pode deletar suas próprias entregas"
 
 ---
 
-## 4. 🔌 Referência Exaustiva da API REST (11 Endpoints)
+## 4. 🔌 Referência Exaustiva da API REST (13 Endpoints)
 
 ### 4.1. Autenticação e Cabeçalhos Globais
 
@@ -722,6 +722,80 @@ Status Code: `401 Unauthorized`.
 
 ---
 
+#### 12. Autocomplete de Endereço via Google Places
+* **Método & Rota:** `GET /api/v1/locais/autocomplete`
+* **Autenticação:** Bearer token obrigatório.
+* **Descrição:** Retorna sugestões preditivas de endereços usando a Google Places API (New). Aplica `locationBias` com GPS do entregador para priorizar resultados locais. O circuit breaker interrompe chamadas ao Google quando o contador diário atinge 298 requisições, retornando lista vazia com `cotaEsgotada: true`.
+* **Query Parameters:**
+  - `q` (string, obrigatório, mín. 3 caracteres): Texto parcial do endereço.
+  - `lat` (number, opcional): Latitude do entregador para localBias.
+  - `lon` (number, opcional): Longitude do entregador para localBias.
+* **Exemplo de Request:**
+  ```http
+  GET /api/v1/locais/autocomplete?q=Av+Presidente+Vargas&lat=-29.68&lon=-53.80
+  Authorization: Bearer <token>
+  ```
+* **Códigos de Retorno:**
+  - `200 OK`: Lista de sugestões (pode ser vazia se cota esgotada ou sem resultados).
+  - `400 Bad Request`: Parâmetro `q` ausente ou com menos de 3 caracteres.
+  - `401 Unauthorized`: Token não fornecido ou inválido.
+  - `500 Internal Server Error`: Falha na chamada à API do Google.
+* **Exemplo de Resposta de Sucesso (`200`):**
+  ```json
+  {
+    "sucesso": true,
+    "sugestoes": [
+      {
+        "placeId": "ChIJN1t_tDeuEmsRUsoyG83frY4",
+        "descricao": "Av. Presidente Vargas, 1500 - Nossa Senhora de Fátima, Santa Maria - RS",
+        "textoSecundario": "Santa Maria, RS, Brasil"
+      }
+    ],
+    "cotaEsgotada": false,
+    "usoHoje": 5
+  }
+  ```
+
+---
+
+#### 13. Detalhes de Local via Google Places
+* **Método & Rota:** `GET /api/v1/locais/detalhes`
+* **Autenticação:** Bearer token obrigatório.
+* **Descrição:** Retorna coordenadas precisas (`lat`, `lon`), endereço formatado e componentes de endereço (logradouro, número, bairro, cidade, estado, CEP) de um local identificado pelo `placeId` da Google Places API (New).
+* **Query Parameters:**
+  - `placeId` (string, obrigatório): Identificador único do local retornado pelo endpoint de autocomplete.
+* **Exemplo de Request:**
+  ```http
+  GET /api/v1/locais/detalhes?placeId=ChIJN1t_tDeuEmsRUsoyG83frY4
+  Authorization: Bearer <token>
+  ```
+* **Códigos de Retorno:**
+  - `200 OK`: Detalhes do local com coordenadas.
+  - `400 Bad Request`: Parâmetro `placeId` ausente.
+  - `401 Unauthorized`: Token não fornecido ou inválido.
+  - `500 Internal Server Error`: Falha ao consultar o Google ou placeId inválido.
+* **Exemplo de Resposta de Sucesso (`200`):**
+  ```json
+  {
+    "sucesso": true,
+    "local": {
+      "placeId": "ChIJN1t_tDeuEmsRUsoyG83frY4",
+      "enderecoFormatado": "Av. Presidente Vargas, 1500 - Nossa Senhora de Fátima, Santa Maria - RS, 97015-510",
+      "lat": -29.691234,
+      "lon": -53.812345,
+      "logradouro": "Avenida Presidente Vargas",
+      "numero": "1500",
+      "bairro": "Nossa Senhora de Fátima",
+      "cidade": "Santa Maria",
+      "estado": "RS",
+      "cep": "97015-510"
+    }
+  }
+  ```
+
+---
+
+
 ## 5. 📱 Arquitetura Mobile, Componentes e Fluxo de Estado
 
 ### 5.1. Pilha Tecnológica Frontend
@@ -789,26 +863,30 @@ O fluxo de telas é controlado pelo [`frontend/src/navigation/RootNavigator.tsx`
   - `formatarPontoMaps`: Prioriza coordenadas `lat,lon` quando disponíveis (evita desvios e garante precisão milimétrica) e recorre ao endereço textual sanitizado apenas em caso de coordenadas zeradas. Utiliza separador `%7C` (pipe codificado) para total compatibilidade com o parser de Intents do Android.
 * [`location.ts`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/services/location.ts):
   - `obterLocalizacaoECidadeRapida`: Implementa cache em memória com TTL de 60 segundos para coordenadas e 5 minutos para o nome da cidade. Responde em menos de 5ms sem travar a renderização inicial da interface.
+* [`googlePlaces.service.ts`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/backend/src/services/googlePlaces.service.ts):
+  - **Circuit breaker de segurança em 298 req/dia:** Contador em memória (`contadorDia`) com reset automático à meia-noite via comparação de data. Ao atingir 298, todas as funções retornam resultado vazio/nulo sem chamar a API do Google, garantindo custo R$ 0,00.
+  - `buscarSugestoesGoogle(texto, lat?, lon?)`: Chama `POST https://places.googleapis.com/v1/places:autocomplete` com `locationBias` geográfico quando coordenadas estão disponíveis. Retorna array de `{placeId, descricao, textoSecundario}`.
+  - `obterDetalhesLugar(placeId)`: Chama `GET https://places.googleapis.com/v1/places/{id}` com `X-Goog-FieldMask` contendo `id,displayName,location,formattedAddress,addressComponents`. Extrai e retorna componentes estruturados de endereço + coordenadas decimais precisas.
+  - `geocodificarTextoGoogle(texto)`: Chama `POST https://places.googleapis.com/v1/places:searchText` para geocodificação de fallback. Integrado na cadeia de geocodificação do `criarEntregaHandler` como **Tentativa 0** (antes do Nominatim), garantindo maior precisão quando a GOOGLE_MAPS_API_KEY está configurada.
 
 ---
 
-## 6. 🧪 Engenharia de Qualidade e Arquitetura de Testes (87 Testes)
+## 6. 🧪 Engenharia de Qualidade e Arquitetura de Testes (122 Testes)
 
-A estabilidade do Delivery Fast é garantida por uma suíte completa de **87 testes automatizados (100% aprovados)**:
+A estabilidade do Delivery Fast é garantida por uma suíte completa de **122 testes automatizados (100% aprovados)**:
 
 ```
-Test Suites: 13 passed, 13 total
-Tests:       87 passed, 87 total
-Snapshots:   0 total
-Time:        4.8s
+Backend  — Test Suites: 3 passed, 3 total  |  Tests: 33 passed, 33 total
+Frontend — Test Suites: 14 passed, 14 total  |  Tests: 89 passed, 89 total
+Total    — 122 testes | 0 erros TypeScript
 ```
 
 ### 6.1. Matriz de Cobertura de Testes
 
 | Camada | Arquivo de Teste | Qtd. Testes | Escopo Validado |
 | :--- | :--- | :---: | :--- |
-| **Backend** | [`rotasRoutes.test.ts`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/backend/src/routes/__tests__/rotasRoutes.test.ts) | 18 | CRUD completo, importação em lote, geocodificação Nominatim/BrasilAPI, otimização com GPS, fechamento de turno e baixa de POD. |
-| **Backend** | [`osrm.service.test.ts`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/backend/src/services/__test__/osrm.service.test.ts) | 5 | Algoritmo TSP viário via OSRM, fallback local Nearest-Neighbor + 2-Opt, conversões métricas e pontos zerados. |
+| **Backend** | [`rotasRoutes.test.ts`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/backend/src/routes/__tests__/rotasRoutes.test.ts) | 33 | CRUD completo, importação em lote, geocodificação Nominatim/BrasilAPI, otimização com GPS, fechamento de turno, baixa de POD, **autocomplete Google Places, detalhes de local e circuit breaker de 298 req/dia**. |
+| **Backend** | [`osrm.service.test.ts`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/backend/src/services/__test__/osrm.service.test.ts) | 4 | Algoritmo TSP viário via OSRM, fallback local Nearest-Neighbor + 2-Opt e conversões métricas. |
 | **Backend** | [`auth.middleware.test.ts`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/backend/src/middlewares/__test__/auth.middleware.test.ts) | 4 | Validação de token Bearer via Supabase Auth, rejeição de requisições anônimas e injeção de `userId`. |
 | **Frontend** | [`HomeScreen.test.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/screens/__tests__/HomeScreen.test.tsx) | 4 | Renderização de paradas ativas, resumo financeiro, abertura do Google Maps e abertura de modais. |
 | **Frontend** | [`FechamentoTurnoModal.test.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/components/__tests__/FechamentoTurnoModal.test.tsx) | 4 | Carregamento de métricas diárias, inputs de taxas, persistência em AsyncStorage e envio ao WhatsApp. |
@@ -816,10 +894,11 @@ Time:        4.8s
 | **Frontend** | [`HistoricoScreen.test.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/screens/__tests__/HistoricoScreen.test.tsx) | 6 | Listagem diária, visualizador de comprovantes de entrega, fotos Base64 e assinaturas digitais. |
 | **Frontend** | [`ImportarLoteModal.test.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/components/__tests__/ImportarLoteModal.test.tsx) | 5 | Parser inteligente de linhas, sanitização de pontuações trailing e envio do payload à API. |
 | **Frontend** | [`ComprovanteEntregaModal.test.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/components/__tests__/ComprovanteEntregaModal.test.tsx) | 5 | Captura de foto, desenho no Canvas com bloqueio de scroll, máscara de CPF e baixa rápida. |
-| **Frontend** | [`NovaEntregaScreen.test.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/screens/__tests__/NovaEntregaScreen.test.tsx) | 4 | Formulário de criação, validações de campos obrigatórios e geocodificação em background. |
+| **Frontend** | [`NovaEntregaScreen.test.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/screens/__tests__/NovaEntregaScreen.test.tsx) | 5 | Formulário de criação, validações de campos, geocodificação em background e **autocomplete Google Places com seleção de sugestão**. |
 | **Frontend** | [`LoginScreen.test.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/screens/__tests__/LoginScreen.test.tsx) | 6 | Login com Supabase, exibição/ocultação de senha, validação de campos e navegação ao cadastro. |
 | **Frontend** | [`CadastroScreen.test.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/screens/__tests__/CadastroScreen.test.tsx) | 6 | Registro de entregadores, verificação de confirmação de senha idêntica e tratamento de erros. |
 | **Frontend** | [`navigation.test.ts`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/utils/__test__/navigation.test.ts) | 7 | Algoritmo de particionamento em lotes de até 10 paradas e formatação geoespacial URL-encoded (`%7C`). |
+| **Frontend** | Demais suítes de componentes | 16 | Cobertura adicional de edge cases e integrações de contexto. |
 
 ---
 
@@ -830,21 +909,23 @@ No ecossistema React Native 0.83 com React 19, o utilitário interno de renderiz
 Para garantir que a suíte execute com zero advertências e 100% de estabilidade:
 1. **Patch de Compatibilidade:** Foi criado o patch permanente [`frontend/patches/react-native+0.83.0.patch`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/patches/react-native+0.83.0.patch), gerenciado pelo `patch-package`, que protege a leitura de propriedades no componente base do React Native.
 2. **Setup Global Jest ([`frontend/jest.setup.js`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/jest.setup.js)):** Configuração padronizada de mocks para `expo-location`, `expo-image-picker`, `@react-native-async-storage/async-storage`, `Linking` e `lucide-react-native`.
+3. **Mocks Google Places (backend):** `vi.mock("axios")` em `rotasRoutes.test.ts` garante que nenhuma chamada real sai para a Google Places API durante os testes. `process.env.GOOGLE_MAPS_API_KEY = "test-api-key"` é injetado no `beforeEach`.
 
 ---
 
 ### 6.3. Execução dos Testes
 
-* **Executar os 27 testes do Backend (Vitest):**
+* **Executar os 33 testes do Backend (Vitest):**
   ```bash
   cd backend
   npm test
   ```
-* **Executar os 56 testes do Frontend (Jest):**
+* **Executar os 89 testes do Frontend (Jest):**
   ```bash
   cd frontend
   npm test
   ```
+
 
 ---
 
@@ -926,6 +1007,10 @@ _Gerado automaticamente via Delivery Fast App_
 | `PORT` | Não | `3000` | Porta TCP onde o Fastify escuta requisições. |
 | `SUPABASE_URL` | Sim | `https://xxxx.supabase.co` | URL base do seu projeto Supabase. |
 | `SUPABASE_KEY` | Sim | `eyJhbGciOi...` | Chave de serviço (`anon key` ou `service_role key`). |
+| `GOOGLE_MAPS_API_KEY` | Não | `AIzaSy...` | Chave da Google Places API (New). Habilita autocomplete preditivo de endereços no frontend e geocodificação Google como Tentativa 0 na criação de entregas. **Circuit breaker de 298 req/dia ativo** — ao atingir o limite, o sistema retorna vazio sem custo adicional. Sem esta variável, o sistema usa exclusivamente Nominatim/BrasilAPI. |
+| `CONSUMO_MEDIO_KM_L` | Não | `10` | Consumo médio do veículo em km/litro para cálculo de economia de combustível (default: `10`). |
+| `PRECO_COMBUSTIVEL` | Não | `5.8` | Preço do litro de combustível em R$ para cálculo de economia (default: `5.80`). |
+| `ECONOMIA_POR_KM` | Não | `0.45` | Valor em R$ de economia estimada por km otimizado para exibição no resumo de rota (default: `0.45`). |
 
 #### Frontend (`frontend/.env`)
 | Variável | Obrigatória | Exemplo | Descrição |
@@ -947,7 +1032,7 @@ _Gerado automaticamente via Delivery Fast App_
 ```bash
 cd backend
 npm install
-npm test       # Valida os 27 testes automatizados
+npm test       # Valida os 33 testes automatizados do backend
 npm run dev    # Inicia a API Fastify com hot reload
 ```
 
@@ -955,7 +1040,7 @@ npm run dev    # Inicia a API Fastify com hot reload
 ```bash
 cd frontend
 npm install
-npm test       # Valida os 56 testes automatizados
+npm test       # Valida os 89 testes automatizados do frontend
 npx expo start -c
 ```
 Escaneie o QR Code gerado no terminal com o aplicativo **Expo Go** em um dispositivo Android ou via Câmera no iOS.
