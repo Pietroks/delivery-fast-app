@@ -1,14 +1,14 @@
 import { z } from "zod";
 
 export const origemFixaSchema = z.object({
-  lat: z.number(),
-  lon: z.number(),
+  lat: z.number().min(-90).max(90),
+  lon: z.number().min(-180).max(180),
   endereco: z.string().optional(),
 });
 
 export const otimizarRotaSchema = z.object({
-  latUsuario: z.number().optional(),
-  lonUsuario: z.number().optional(),
+  latUsuario: z.number().min(-90).max(90).optional(),
+  lonUsuario: z.number().min(-180).max(180).optional(),
   origemFixa: origemFixaSchema.optional(),
   retornarABase: z.boolean().optional(),
 });
@@ -78,10 +78,31 @@ export const atualizarStatusSchema = z.object({
 export type AtualizarStatusInput = z.infer<typeof atualizarStatusSchema>;
 
 export const relatorioFechamentoSchema = z.object({
-  data: z.string().optional(),
+  data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato de data inválido. Use AAAA-MM-DD.").optional(),
   taxaEntrega: z.coerce.number().min(0).optional().default(0),
   valorKm: z.coerce.number().min(0).optional().default(0),
   diaria: z.coerce.number().min(0).optional().default(0),
 });
 
 export type RelatorioFechamentoInput = z.infer<typeof relatorioFechamentoSchema>;
+
+export const concluirEntregasSchema = z.object({
+  idsConcluidos: z.array(z.string()).optional(),
+  itensConcluidos: z.array(z.object({
+    id: z.string(),
+    status: z.string().optional(),
+    motivoInsucesso: z.string().optional(),
+    recebidoPor: z.string().optional(),
+  })).optional(),
+});
+
+export type ConcluirEntregasInput = z.infer<typeof concluirEntregasSchema>;
+
+export const reordenarSchema = z.object({
+  paradas: z.array(z.object({
+    id: z.string(),
+    ordem: z.number().int().positive(),
+  })),
+});
+
+export type ReordenarInput = z.infer<typeof reordenarSchema>;

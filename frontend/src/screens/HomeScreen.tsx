@@ -3,6 +3,9 @@ import { StatusBar, Text, TouchableOpacity, View, ActivityIndicator, ScrollView,
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../types/navigation";
+import axios from "axios";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { api } from "../services/api";
@@ -36,7 +39,7 @@ export interface Parada {
 }
 
 export default function HomeScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { nomeUsuario } = useAuth();
   const [rotas, setRotas] = useState<Parada[]>([]);
   const [resumo, setResumo] = useState<ResumoRotaData | null>(null);
@@ -66,7 +69,7 @@ export default function HomeScreen() {
     }
   };
 
-  const carregarEntregas = useCallback(async () => {
+  const carregarEntregas = useCallback(async (signal?: AbortSignal) => {
     if (rotas.length === 0) {
       try {
         const cacheLocal = await carregarRotasLocalmente();
@@ -83,8 +86,9 @@ export default function HomeScreen() {
       if (gps.lat && gps.lon) {
         setGpsUsuario(gps);
       }
-      const config = gps.lat && gps.lon ? { params: { lat: gps.lat, lon: gps.lon } } : undefined;
-      const response = config ? await api.get("/rotas/atual", config) : await api.get("/rotas/atual");
+      const config: any = gps.lat && gps.lon ? { params: { lat: gps.lat, lon: gps.lon } } : {};
+      if (signal) config.signal = signal;
+      const response = await api.get("/rotas/atual", config);
 
       if (response.data) {
         const paradasServidor = response.data.paradas || [];
@@ -216,9 +220,10 @@ export default function HomeScreen() {
         setModalFinalizarAberto(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         alertaApp("Sucesso", "Entregas finalizadas com sucesso!");
-      } catch (err: any) {
+      } catch (err: unknown) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        alertaApp("Erro", err?.response?.data?.erro || "Erro ao finalizar entregas.");
+        const mensagemErro = axios.isAxiosError(err) ? err.response?.data?.erro : "Erro desconhecido";
+        alertaApp("Erro", mensagemErro || "Erro ao finalizar entregas.");
       } finally {
         setFinalizando(false);
       }
@@ -228,8 +233,10 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      carregarEntregas();
+      const abortController = new AbortController();
+      carregarEntregas(abortController.signal);
       carregarConfigPontoPartida().then(setConfigPonto);
+      return () => abortController.abort();
     }, [carregarEntregas]),
   );
 

@@ -71,6 +71,7 @@ export default function LoginScreen() {
                   value={email}
                   onChangeText={setEmail}
                   editable={!carregando}
+                  accessibilityLabel="Campo de email"
                 />
               </View>
             </View>
@@ -87,6 +88,7 @@ export default function LoginScreen() {
                   value={senha}
                   onChangeText={setSenha}
                   editable={!carregando}
+                  accessibilityLabel="Campo de senha"
                 />
                 <TouchableOpacity
                   onPress={() => setMostrarSenha(!mostrarSenha)}

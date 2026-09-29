@@ -40,7 +40,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       await limparCacheRotasLocalmente();
-    } catch {}
+    } catch (err) {
+      console.warn("Falha ao limpar cache de rotas no signOut:", err);
+    }
     await supabase.auth.signOut();
   };
 

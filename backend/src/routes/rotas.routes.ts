@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { supabase } from "../services/supabase";
 import axios from "axios";
-import { otimizarSequencia, PontoRota } from "../services/osrm.service";
+import { otimizarSequencia, PontoRota, calcularDistanciaHaversineMetros } from "../services/osrm.service";
 import {
   CriarEntregaInput,
   criarEntregaSchema,
@@ -11,6 +11,8 @@ import {
   ImportarLoteInput,
   atualizarStatusSchema,
   relatorioFechamentoSchema,
+  concluirEntregasSchema,
+  reordenarSchema,
 } from "../schemas/rotas.schema";
 import { verificarToken } from "../middlewares/auth.middleware";
 
@@ -56,20 +58,11 @@ interface EntregaDB {
 function calcularResumoReal(totalEntregas: number, distanciaMetros: number = 0, duracaoSegundos: number = 0): ResumoRota {
   const distanciaKm = distanciaMetros === 0 ? 0 : Number((distanciaMetros / 1000).toFixed(1));
   const tempoEstimadoMin = Math.round(duracaoSegundos / 60);
-  const economiaEstimadaRs = Number((distanciaKm * 0.45).toFixed(2));
+  const ECONOMIA_POR_KM = Number(process.env.ECONOMIA_POR_KM) || 0.45;
+  const economiaEstimadaRs = Number((distanciaKm * ECONOMIA_POR_KM).toFixed(2));
   return { totalEntregas, distanciaKm, tempoEstimadoMin, economiaEstimadaRs };
 }
 
-function calcularDistanciaHaversineMetros(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
 
 function calcularDistanciaRotaFallback(coords: { lat: number; lon: number }[]): { distanciaMetros: number; duracaoSegundos: number } {
   let distanciaMetros = 0;
@@ -318,6 +311,16 @@ async function geocodificarNoCadastro(
 // Handlers Autenticados
 // ============================================================================
 
+async function obterProximaOrdem(userId: string): Promise<number> {
+  const { data: ultimas } = await supabase
+    .from("entregas")
+    .select("ordem")
+    .eq("entregador_id", userId)
+    .or("status.neq.entregue,status.is.null")
+    .order("ordem", { ascending: false });
+  return (ultimas?.[0]?.ordem ?? 0) + 1;
+}
+
 async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply) {
   const userId = (request as any).userId;
   const validacao = criarEntregaSchema.safeParse(request.body);
@@ -337,14 +340,7 @@ async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply)
     const coords = await geocodificarNoCadastro(body.rua, body.numero, body.bairro, body.cidade, body.cep, body.latUsuario, body.lonUsuario);
 
     // Calcula a próxima ordem sequencial para a nova entrega
-    const { data: ultimasEntregas } = await supabase
-      .from("entregas")
-      .select("ordem")
-      .eq("entregador_id", userId)
-      .or("status.neq.entregue,status.is.null")
-      .order("ordem", { ascending: false });
-
-    const proximaOrdem = (ultimasEntregas?.[0]?.ordem ?? 0) + 1;
+    const proximaOrdem = await obterProximaOrdem(userId);
 
     const { data, error } = await supabase
       .from("entregas")
@@ -392,14 +388,7 @@ async function importarLoteHandler(request: FastifyRequest, reply: FastifyReply)
     const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
 
     // Busca a ordem mais alta atual para sequenciar o lote a partir dela
-    const { data: ultimasEntregas } = await supabase
-      .from("entregas")
-      .select("ordem")
-      .eq("entregador_id", userId)
-      .or("status.neq.entregue,status.is.null")
-      .order("ordem", { ascending: false });
-
-    let proximaOrdem = (ultimasEntregas?.[0]?.ordem ?? 0) + 1;
+    let proximaOrdem = await obterProximaOrdem(userId);
 
     const entregasProcessadas: any[] = [];
     for (let i = 0; i < entregas.length; i++) {
@@ -478,7 +467,8 @@ async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyRep
             await supabase
               .from("entregas")
               .update({ lat: novasCoords.lat, lon: novasCoords.lon })
-              .eq("id", item.id);
+              .eq("id", item.id)
+              .eq("entregador_id", userId);
           }
         })
         .catch(() => {});
@@ -655,11 +645,11 @@ async function historicoGeralHandler(request: FastifyRequest, reply: FastifyRepl
 async function concluirTodasEntregasHandler(request: FastifyRequest, reply: FastifyReply) {
   const userId = (request as any).userId;
   try {
-    const { idsConcluidos, itensConcluidos } =
-      (request.body as {
-        idsConcluidos?: string[];
-        itensConcluidos?: { id: string; status?: string; motivoInsucesso?: string; recebidoPor?: string }[];
-      }) || {};
+    const validacao = concluirEntregasSchema.safeParse(request.body || {});
+    if (!validacao.success) {
+      return reply.status(400).send({ sucesso: false, erro: "Dados inválidos." });
+    }
+    const { idsConcluidos, itensConcluidos } = validacao.data;
 
     if (itensConcluidos && Array.isArray(itensConcluidos) && itensConcluidos.length > 0) {
       const updates = itensConcluidos.map((item) => {
@@ -680,7 +670,7 @@ async function concluirTodasEntregasHandler(request: FastifyRequest, reply: Fast
     if (idsConcluidos && Array.isArray(idsConcluidos) && idsConcluidos.length > 0) {
       query = query.in("id", idsConcluidos);
     } else {
-      query = query.or("status.neq.entregue,status.is.null");
+      query = query.eq("status", "pendente");
     }
 
     const { error } = await query;
@@ -688,7 +678,7 @@ async function concluirTodasEntregasHandler(request: FastifyRequest, reply: Fast
 
     return reply.status(200).send({ sucesso: true, mensagem: "Entregas finalizadas com sucesso!" });
   } catch (error) {
-    return reply.status(500).send({ sucesso: false, mensagem: "Erro ao processar requisição." });
+    return reply.status(500).send({ sucesso: false, erro: "Erro ao processar requisição." });
   }
 }
 
@@ -730,8 +720,12 @@ export async function rotasRoutes(app: FastifyInstance) {
 
   app.put(
     "/api/v1/rotas/reordenar",
-    async (request: FastifyRequest<{ Body: { paradas: { id: string; ordem: number }[] } }>, reply: FastifyReply) => {
-      const { paradas } = request.body;
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const validacao = reordenarSchema.safeParse(request.body);
+      if (!validacao.success) {
+        return reply.status(400).send({ sucesso: false, erro: "Dados inválidos." });
+      }
+      const { paradas } = validacao.data;
       const userId = (request as any).userId;
 
       try {
@@ -774,14 +768,7 @@ export async function rotasRoutes(app: FastifyInstance) {
     const observacaoReal = observacao;
 
     if (moverParaFinal) {
-      const { data: ultimas } = await supabase
-        .from("entregas")
-        .select("ordem")
-        .eq("entregador_id", userId)
-        .or("status.neq.entregue,status.is.null")
-        .order("ordem", { ascending: false });
-
-      const maiorOrdem = (ultimas?.[0]?.ordem ?? 0) + 1;
+      const maiorOrdem = await obterProximaOrdem(userId);
 
       const notaRef = [
         motivoReal ? `Motivo insucesso: ${motivoReal}` : "",

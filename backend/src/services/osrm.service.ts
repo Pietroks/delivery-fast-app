@@ -7,8 +7,8 @@ export interface PontoRota {
   enderecoOriginal: string;
 }
 
-const CONSUMO_MEDIO_KM_L = 10;
-const PRECO_COMBUSTIVEL = 5.8;
+const CONSUMO_MEDIO_KM_L = Number(process.env.CONSUMO_MEDIO_KM_L) || 10;
+const PRECO_COMBUSTIVEL = Number(process.env.PRECO_COMBUSTIVEL) || 5.8;
 
 export function calcularDistanciaHaversineMetros(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3;
@@ -191,17 +191,4 @@ export async function otimizarSequencia(pontos: PontoRota[], opcoes?: { retornar
   }
 
   return pontosOrdenados;
-}
-
-export function calcularMetricas(distanciaMetros: number, tempoSegundos: number) {
-  const distanciaKm = distanciaMetros / 1000;
-  const tempoMinutos = Math.round(tempoSegundos / 60);
-
-  const custoEstimado = (distanciaKm / CONSUMO_MEDIO_KM_L) * PRECO_COMBUSTIVEL;
-
-  return {
-    distanciaKm: distanciaKm.toFixed(1),
-    tempoFormatado: `${Math.floor(tempoMinutos / 60)}h ${tempoMinutos % 60}m`,
-    custoEstimado: custoEstimado.toFixed(2),
-  };
 }

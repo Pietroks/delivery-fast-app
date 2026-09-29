@@ -2,6 +2,8 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Alert, Modal, Text, TextInput, TouchableOpacity, View, FlatList, Linking, RefreshControl } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../types/navigation";
 import * as Haptics from "expo-haptics";
 import { Parada } from "../screens/HomeScreen";
 import { api } from "../services/api";
@@ -40,7 +42,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
   isOffline = false,
   gpsUsuario,
 }) => {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [listaLocal, setListaLocal] = useState<Parada[]>(paradas);
   const [paradaEmEdicao, setParadaEmEdicao] = useState<Parada | null>(null);

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import axios from "axios";
-import { otimizarSequencia, calcularMetricas } from "../osrm.service";
+import { otimizarSequencia } from "../osrm.service";
 
 vi.mock("axios");
 const mockedAxios = vi.mocked(axios, true);
@@ -86,15 +86,4 @@ describe("Serviço OSRM (osrm.service.ts)", () => {
     });
   });
 
-  describe("calcularMetricas", () => {
-    it("Deve converter distância e tempo em combustível e formato de horas corretamente", () => {
-      // 10.000 metros (10 km) e 3900 segundos (65 minutos -> 1h 5m)
-      const metricas = calcularMetricas(10000, 3900);
-
-      expect(metricas.distanciaKm).toBe("10.0");
-      expect(metricas.tempoFormatado).toBe("1h 5m");
-      // 10km / 10 km/l = 1 Litro * R$ 5,80 = 5.80
-      expect(metricas.custoEstimado).toBe("5.80");
-    });
-  });
 });

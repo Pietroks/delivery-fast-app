@@ -2,7 +2,7 @@ import axios from "axios";
 import { supabase } from "./supabase";
 
 export const api = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL || "http://10.0.2.2:3000/api/v1",
+  baseURL: process.env.EXPO_PUBLIC_API_URL || "http://10.0.2.2:3000/api/v1", // fallback para emulador Android
 });
 
 api.interceptors.request.use(async (config) => {
