@@ -205,6 +205,18 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       const response = await app.inject({ method: "GET", url: "/api/v1/rotas/atual" });
       expect(response.statusCode).toBe(200);
     });
+
+    it("Deve retornar idParadaAtiva e paradaAtiva como null quando não houver entregas pendentes", async () => {
+      mockOrder.mockResolvedValueOnce({ data: [], error: null });
+
+      const response = await app.inject({ method: "GET", url: "/api/v1/rotas/atual" });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.idParadaAtiva).toBeNull();
+      expect(body.paradaAtiva).toBeNull();
+      expect(body.paradas).toEqual([]);
+    });
   });
 
   describe("POST /api/v1/rotas/otimizar", () => {
