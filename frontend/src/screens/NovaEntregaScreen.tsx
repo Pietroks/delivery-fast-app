@@ -513,28 +513,28 @@ export default function NovaEntregaScreen({ onVoltar, onEntregaSalva }: NovaEntr
             accessibilityLabel="Logradouro / Rua / Plus Code *"
           />
 
-          {/* Sugestões do Google Places */}
+          {/* Sugestões do Google Places (Cockpit Noturno Tático - Nível 2 de Elevação) */}
           {sugestoes.length > 0 && (
-            <View className="mt-1 bg-[#152033] border border-[#22334f] rounded-xl overflow-hidden shadow-lg">
+            <View className="mt-1.5 bg-[#1e2e48] border border-[#22334f] rounded-xl overflow-hidden">
               {sugestoes.map((item, idx) => (
                 <TouchableOpacity
                   key={item.id || idx.toString()}
                   onPress={() => handleSelecionarSugestao(item)}
-                  className={`p-3 flex-row items-center gap-2.5 active:bg-[#1e2e48] ${
-                    idx < sugestoes.length - 1 ? "border-b border-[#22334f]/50" : ""
+                  className={`px-4 py-3 min-h-[48px] flex-row items-center gap-3 active:bg-[#152033] ${
+                    idx < sugestoes.length - 1 ? "border-b border-[#22334f]" : ""
                   }`}
                   accessibilityRole="button"
                   accessibilityLabel={`Selecionar ${item.descricao}`}
                 >
-                  <View className="w-7 h-7 rounded-full bg-sky-500/15 items-center justify-center">
-                    <Ionicons name="location" size={15} color="#38bdf8" />
+                  <View className="w-8 h-8 rounded-full bg-sky-500/10 items-center justify-center">
+                    <Ionicons name="location" size={16} color="#38bdf8" />
                   </View>
-                  <View className="flex-1">
-                    <Text className="text-white text-xs font-semibold" numberOfLines={1}>
+                  <View className="flex-1 justify-center">
+                    <Text className="text-white text-sm font-semibold" numberOfLines={1}>
                       {item.principal || item.descricao}
                     </Text>
                     {item.secundario ? (
-                      <Text className="text-[#94a3b8] text-[11px] mt-0.5" numberOfLines={1}>
+                      <Text className="text-[#94a3b8] text-xs mt-0.5" numberOfLines={1}>
                         {item.secundario}
                       </Text>
                     ) : null}
