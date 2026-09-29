@@ -341,6 +341,55 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       const body = JSON.parse(response.body);
       expect(body.sucesso).toBe(false);
     });
+
+    it("PUT /api/v1/entregas/:id/status - Deve registrar tentativa_falha com motivo e observação", async () => {
+      mockEq.mockReturnValueOnce(mockQueryBuilder).mockResolvedValueOnce({ error: null });
+
+      const response = await app.inject({
+        method: "PUT",
+        url: "/api/v1/entregas/123/status",
+        payload: {
+          status: "tentativa_falha",
+          motivoFalha: "destinatario_ausente",
+          observacao: "Portão fechado",
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "tentativa_falha",
+          referencia: "Motivo: destinatario_ausente | Obs: Portão fechado",
+        }),
+      );
+    });
+
+    it("PUT /api/v1/entregas/:id/status - Deve mover entrega para o final quando moverParaFinal for true", async () => {
+      mockOrder.mockResolvedValueOnce({ data: [{ ordem: 5 }], error: null });
+      mockEq
+        .mockReturnValueOnce(mockQueryBuilder)
+        .mockReturnValueOnce(mockQueryBuilder)
+        .mockResolvedValueOnce({ error: null });
+
+      const response = await app.inject({
+        method: "PUT",
+        url: "/api/v1/entregas/123/status",
+        payload: {
+          status: "pendente",
+          motivoFalha: "endereco_nao_localizado",
+          moverParaFinal: true,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "pendente",
+          ordem: 6,
+          referencia: "Motivo insucesso: endereco_nao_localizado",
+        }),
+      );
+    });
   });
 
   describe("DELETE /api/v1/entregas/:id", () => {

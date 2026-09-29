@@ -741,14 +741,69 @@ export async function rotasRoutes(app: FastifyInstance) {
       });
     }
 
-    const { status, motivoInsucesso, recebidoPor, documentoRecebedor, fotoComprovante, assinaturaDigital } = validacao.data;
+    const {
+      status,
+      motivoInsucesso,
+      motivoFalha,
+      observacao,
+      moverParaFinal,
+      recebidoPor,
+      documentoRecebedor,
+      fotoComprovante,
+      assinaturaDigital,
+    } = validacao.data;
     const userId = (request as any).userId;
+
+    const motivoReal = motivoFalha || motivoInsucesso;
+    const observacaoReal = observacao;
+
+    if (moverParaFinal) {
+      const { data: ultimas } = await supabase
+        .from("entregas")
+        .select("ordem")
+        .eq("entregador_id", userId)
+        .or("status.neq.entregue,status.is.null")
+        .order("ordem", { ascending: false });
+
+      const maiorOrdem = (ultimas?.[0]?.ordem ?? 0) + 1;
+
+      const notaRef = [
+        motivoReal ? `Motivo insucesso: ${motivoReal}` : "",
+        observacaoReal ? `Obs: ${observacaoReal}` : "",
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      const updateReord: Record<string, any> = {
+        ordem: maiorOrdem,
+        status: "pendente",
+        updated_at: new Date().toISOString(),
+      };
+      if (notaRef) updateReord.referencia = notaRef;
+
+      const { error: errReord } = await supabase
+        .from("entregas")
+        .update(updateReord)
+        .eq("id", id)
+        .eq("entregador_id", userId);
+
+      if (errReord) return reply.status(500).send({ sucesso: false, erro: "Erro ao mover entrega para o final." });
+      return reply.status(200).send({ sucesso: true, mensagem: "Entrega movida para o final do turno com sucesso!" });
+    }
 
     const updateData: Record<string, any> = {
       status,
       updated_at: new Date().toISOString(),
     };
-    if (motivoInsucesso) updateData.referencia = `Motivo: ${motivoInsucesso}`;
+    if (motivoReal || observacaoReal) {
+      const notaRef = [
+        motivoReal ? `Motivo: ${motivoReal}` : "",
+        observacaoReal ? `Obs: ${observacaoReal}` : "",
+      ]
+        .filter(Boolean)
+        .join(" | ");
+      updateData.referencia = notaRef;
+    }
     if (recebidoPor) updateData.nome_destinatario = recebidoPor;
     if (documentoRecebedor) updateData.documento_recebedor = documentoRecebedor;
     if (fotoComprovante) updateData.foto_comprovante = fotoComprovante;

@@ -44,12 +44,23 @@ export const importarLoteSchema = z.object({
 
 export type ImportarLoteInput = z.infer<typeof importarLoteSchema>;
 
-export const statusEntregaEnum = z.enum(["pendente", "entregue", "ausente", "nao_localizado", "recusado"]);
+export const statusEntregaEnum = z.enum([
+  "pendente",
+  "entregue",
+  "ausente",
+  "nao_localizado",
+  "recusado",
+  "tentativa_falha",
+  "problema_operacional",
+]);
 export type StatusEntrega = z.infer<typeof statusEntregaEnum>;
 
 export const atualizarStatusSchema = z.object({
   status: statusEntregaEnum,
   motivoInsucesso: z.string().optional(),
+  motivoFalha: z.string().optional(),
+  observacao: z.string().optional(),
+  moverParaFinal: z.boolean().optional(),
   recebidoPor: z.string().optional(),
   documentoRecebedor: z.string().optional(),
   fotoComprovante: z.string().optional(),

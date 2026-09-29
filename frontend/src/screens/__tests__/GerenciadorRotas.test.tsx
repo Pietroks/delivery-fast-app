@@ -296,4 +296,68 @@ describe("Componente: GerenciadorRotas", () => {
       expect(spyNavegar).toHaveBeenCalledWith(mockParadas[0], undefined);
     });
   });
+
+  test("Deve abrir o modal de insucesso e mover para o final da rota", async () => {
+    (api.put as jest.Mock).mockResolvedValue({ data: { sucesso: true } });
+
+    const { getByText } = render(
+      <GerenciadorRotas
+        paradas={mockParadas}
+        onAtualizarLista={mockOnAtualizarLista}
+        onReordenarLocal={mockOnReordenarLocal}
+      />,
+    );
+
+    const botaoProblema = getByText("Problema");
+    fireEvent.press(botaoProblema);
+
+    expect(getByText("Relatar Insucesso")).toBeTruthy();
+
+    const botaoMoverFinal = getByText("TENTAR NO FINAL DO TURNO");
+    fireEvent.press(botaoMoverFinal);
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith(
+        "/entregas/1/status",
+        expect.objectContaining({
+          status: "pendente",
+          motivoFalha: "destinatario_ausente",
+          moverParaFinal: true,
+        }),
+      );
+      expect(mockOnAtualizarLista).toHaveBeenCalled();
+    });
+  });
+
+  test("Deve abrir o modal de insucesso e encerrar como falha", async () => {
+    (api.put as jest.Mock).mockResolvedValue({ data: { sucesso: true } });
+
+    const { getByText } = render(
+      <GerenciadorRotas
+        paradas={mockParadas}
+        onAtualizarLista={mockOnAtualizarLista}
+        onReordenarLocal={mockOnReordenarLocal}
+      />,
+    );
+
+    const botaoProblema = getByText("Problema");
+    fireEvent.press(botaoProblema);
+
+    expect(getByText("Relatar Insucesso")).toBeTruthy();
+
+    const botaoEncerrarFalha = getByText("ENCERRAR COMO FALHA");
+    fireEvent.press(botaoEncerrarFalha);
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith(
+        "/entregas/1/status",
+        expect.objectContaining({
+          status: "tentativa_falha",
+          motivoFalha: "destinatario_ausente",
+          moverParaFinal: false,
+        }),
+      );
+      expect(mockOnAtualizarLista).toHaveBeenCalled();
+    });
+  });
 });

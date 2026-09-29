@@ -9,6 +9,7 @@ import { ComprovanteEntregaModal, DadosComprovante } from "./ComprovanteEntregaM
 import { alertaApp } from "../contexts/AlertContext";
 import { abrirRotaGoogleMaps, abrirNavegacaoIndividual } from "../utils/navigation";
 import { CardParadaAtiva } from "./CardParadaAtiva";
+import { InsucessoEntregaModal, DadosInsucesso } from "./InsucessoEntregaModal";
 
 interface GerenciadorRotasProps {
   paradas: Parada[];
@@ -48,6 +49,8 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
   const [carregandoAcao, setCarregandoAcao] = useState<EstadoCarregamento>("nenhum");
   const [paradaComprovante, setParadaComprovante] = useState<Parada | null>(null);
   const [carregandoComprovante, setCarregandoComprovante] = useState(false);
+  const [paradaInsucesso, setParadaInsucesso] = useState<Parada | null>(null);
+  const [carregandoInsucesso, setCarregandoInsucesso] = useState(false);
   const [itemDesfazer, setItemDesfazer] = useState<ItemDesfazer | null>(null);
 
   const timerDesfazerRef = useRef<NodeJS.Timeout | null>(null);
@@ -310,31 +313,75 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
     [listaLocal, onAtualizarLista, onReordenarLocal, restaurarLista, hapticaErro],
   );
 
-  const handleInsucesso = useCallback(
-    (item: Parada) => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      alertaApp(
-        "Problema na Entrega",
-        `Não foi possível concluir a entrega para "${item.rua}"?`,
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Mover para o final da rota",
-            onPress: () => {
-              const indexAtual = listaLocal.findIndex((p) => p.id === item.id);
-              if (indexAtual >= 0 && listaLocal.length > 1) {
-                const novaLista = [...listaLocal];
-                const [removido] = novaLista.splice(indexAtual, 1);
-                novaLista.push(removido);
-                reordenarEOtimizarUI(novaLista);
-                hapticaSucesso();
-              }
-            },
-          },
-        ],
-      );
+  const handleInsucesso = useCallback((item: Parada) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setParadaInsucesso(item);
+  }, []);
+
+  const handleConfirmarInsucesso = useCallback(
+    async (dados: DadosInsucesso) => {
+      if (!paradaInsucesso) return;
+      const item = paradaInsucesso;
+      setCarregandoInsucesso(true);
+      hapticaSucesso();
+
+      if (dados.moverParaFinal) {
+        // Otimisticamente move o item para o final da lista local
+        const indexOriginal = listaLocal.findIndex((p) => p.id === item.id);
+        const novaLista = [...listaLocal];
+        const [removido] = novaLista.splice(indexOriginal, 1);
+        novaLista.push(removido);
+        setListaLocal(novaLista);
+        onReordenarLocal?.(novaLista);
+        setParadaInsucesso(null);
+
+        try {
+          await api.put(`/entregas/${item.id}/status`, {
+            status: "pendente",
+            motivoFalha: dados.motivoFalha,
+            observacao: dados.observacao,
+            moverParaFinal: true,
+          });
+          onAtualizarLista();
+        } catch {
+          restaurarLista();
+          hapticaErro();
+          alertaApp("Erro", "Não foi possível mover a entrega para o final.");
+        } finally {
+          setCarregandoInsucesso(false);
+        }
+      } else {
+        // Encerra como tentativa falha
+        const indexOriginal = listaLocal.findIndex((p) => p.id === item.id);
+        const novaLista = listaLocal.filter((p) => p.id !== item.id);
+        setListaLocal(novaLista);
+        onReordenarLocal?.(novaLista);
+        setParadaInsucesso(null);
+
+        iniciarTimerDesfazer({
+          tipo: "concluida",
+          parada: item,
+          indexOriginal,
+        });
+
+        try {
+          await api.put(`/entregas/${item.id}/status`, {
+            status: "tentativa_falha",
+            motivoFalha: dados.motivoFalha,
+            observacao: dados.observacao,
+            moverParaFinal: false,
+          });
+          onAtualizarLista();
+        } catch {
+          restaurarLista();
+          hapticaErro();
+          alertaApp("Erro", "Não foi possível registrar o insucesso da entrega.");
+        } finally {
+          setCarregandoInsucesso(false);
+        }
+      }
     },
-    [listaLocal, reordenarEOtimizarUI, hapticaSucesso],
+    [paradaInsucesso, listaLocal, onAtualizarLista, onReordenarLocal, restaurarLista, hapticaSucesso, hapticaErro],
   );
 
   const handleSalvarEdicao = async () => {
@@ -622,6 +669,22 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
                   if (paradaOpcoes) {
                     const p = paradaOpcoes.parada;
                     setParadaOpcoes(null);
+                    handleInsucesso(p);
+                  }
+                }}
+                className="flex-row items-center min-h-[48px] px-4 rounded-xl bg-[#1e2e48] border border-amber-500/30 active:bg-amber-950/40"
+                accessibilityRole="button"
+                accessibilityLabel="Relatar problema ou insucesso nesta entrega"
+              >
+                <Ionicons name="alert-circle-outline" size={18} color="#f59e0b" />
+                <Text className="text-amber-400 text-xs font-semibold ml-3">Relatar problema / insucesso</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  if (paradaOpcoes) {
+                    const p = paradaOpcoes.parada;
+                    setParadaOpcoes(null);
                     handleExcluir(p);
                   }
                 }}
@@ -682,6 +745,15 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
         carregando={carregandoComprovante}
         onFechar={() => setParadaComprovante(null)}
         onConfirmar={handleConfirmarComprovante}
+      />
+
+      {/* Modal de Insucesso na Entrega */}
+      <InsucessoEntregaModal
+        visivel={!!paradaInsucesso}
+        parada={paradaInsucesso}
+        carregando={carregandoInsucesso}
+        onFechar={() => setParadaInsucesso(null)}
+        onConfirmar={handleConfirmarInsucesso}
       />
     </View>
   );
