@@ -544,7 +544,9 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
   const userId = (request as any).userId;
   try {
     const validacao = otimizarRotaSchema.safeParse(request.body || {});
-    const { latUsuario, lonUsuario }: OtimizarRotaInput = validacao.success ? validacao.data : {};
+    const { latUsuario, lonUsuario, origemFixa, retornarABase }: OtimizarRotaInput = validacao.success
+      ? validacao.data
+      : {};
 
     const { data: entregas, error } = await supabase
       .from("entregas")
@@ -557,10 +559,24 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
       return reply.status(200).send({ sucesso: true, mensagem: "Sem entregas para otimizar." });
     }
 
-    const entregasTipadas = entregas as EntregaDB[];
+    const entregasTipadas = (entregas as EntregaDB[]).filter(
+      (e) => e.status !== "entregue" && e.status !== "tentativa_falha",
+    );
+
+    if (entregasTipadas.length === 0) {
+      return reply.status(200).send({ sucesso: true, mensagem: "Sem entregas para otimizar." });
+    }
+
     const pontosEntrada: PontoRota[] = [];
 
-    if (latUsuario && lonUsuario && latUsuario !== 0 && lonUsuario !== 0) {
+    // Prioriza origemFixa (Hub/Galpão) se fornecido com coordenadas válidas; caso contrário usa latUsuario/lonUsuario (GPS ao vivo)
+    if (origemFixa?.lat && origemFixa?.lon && origemFixa.lat !== 0 && origemFixa.lon !== 0) {
+      pontosEntrada.push({
+        lat: origemFixa.lat,
+        lon: origemFixa.lon,
+        enderecoOriginal: origemFixa.endereco || "Hub Central / Galpão",
+      });
+    } else if (latUsuario && lonUsuario && latUsuario !== 0 && lonUsuario !== 0) {
       pontosEntrada.push({ lat: latUsuario, lon: lonUsuario, enderecoOriginal: "Sua Localização (GPS)" });
     }
 
@@ -568,7 +584,7 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
       pontosEntrada.push({ id: e.id, lat: e.lat ?? 0, lon: e.lon ?? 0, enderecoOriginal: e.rua });
     });
 
-    const pontosOtimizados = await otimizarSequencia(pontosEntrada);
+    const pontosOtimizados = await otimizarSequencia(pontosEntrada, { retornarABase });
 
     let novaOrdem = 1;
     const updates: any[] = [];

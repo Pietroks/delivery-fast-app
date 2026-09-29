@@ -12,7 +12,13 @@ import { ResumoRotaCard, ResumoRotaData } from "../components/ResumoRotaCard";
 import { FinalizarRotaModal } from "../components/FinalizarRotaModal";
 import { ImportarLoteModal } from "../components/ImportarLoteModal";
 import { FechamentoTurnoModal } from "../components/FechamentoTurnoModal";
-import { carregarRotasLocalmente, salvarRotasLocalmente } from "../services/storage";
+import { ModalConfiguracaoPonto } from "../components/ModalConfiguracaoPonto";
+import {
+  carregarRotasLocalmente,
+  salvarRotasLocalmente,
+  carregarConfigPontoPartida,
+  ConfigPontoPartida,
+} from "../services/storage";
 import { useAuth } from "../contexts/AuthContext";
 import { obterLocalizacaoECidadeRapida } from "../services/location";
 import { alertaApp } from "../contexts/AlertContext";
@@ -40,6 +46,8 @@ export default function HomeScreen() {
   const [modalImportarAberto, setModalImportarAberto] = useState(false);
   const [modalFechamentoAberto, setModalFechamentoAberto] = useState(false);
   const [modalAjudaLotesAberto, setModalAjudaLotesAberto] = useState(false);
+  const [modalConfigPontoAberto, setModalConfigPontoAberto] = useState(false);
+  const [configPonto, setConfigPonto] = useState<ConfigPontoPartida>({ tipo: "gps", retornarABase: false });
   const [loteAtivoIndex, setLoteAtivoIndex] = useState(0);
   const [finalizando, setFinalizando] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -150,10 +158,21 @@ export default function HomeScreen() {
         }
       }
 
-      const response = await api.post("/rotas/otimizar", {
+      const payload: Record<string, any> = {
         latUsuario,
         lonUsuario,
-      });
+        retornarABase: configPonto.retornarABase,
+      };
+
+      if (configPonto.tipo === "hub" && configPonto.hubLat && configPonto.hubLon) {
+        payload.origemFixa = {
+          lat: configPonto.hubLat,
+          lon: configPonto.hubLon,
+          endereco: configPonto.hubEndereco,
+        };
+      }
+
+      const response = await api.post("/rotas/otimizar", payload);
 
       if (response.data?.sucesso === false) {
         alertaApp("Erro", response.data?.erro || "Não foi possível otimizar a rota.");
@@ -210,6 +229,7 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       carregarEntregas();
+      carregarConfigPontoPartida().then(setConfigPonto);
     }, [carregarEntregas]),
   );
 
@@ -222,7 +242,7 @@ export default function HomeScreen() {
       <View className="flex-1">
         {/* Cabeçalho de Status Tático do Cockpit */}
         <View className="flex-row items-center justify-between my-2.5">
-          <View>
+          <View className="flex-1 mr-2">
             <Text className="text-white text-lg font-bold">
               {temRotas ? `Cockpit de Rota • ${rotas.length} ${rotas.length === 1 ? "entrega" : "entregas"}` : `Olá, ${nomeUsuario}!`}
             </Text>
@@ -232,6 +252,20 @@ export default function HomeScreen() {
                 : "Pronto para iniciar seu turno de entregas?"}
             </Text>
           </View>
+
+          {/* Botão de Configuração de Ponto de Partida e Retorno */}
+          <TouchableOpacity
+            onPress={() => setModalConfigPontoAberto(true)}
+            className="bg-[#152033] border border-[#22334f] px-2.5 py-1.5 rounded-xl flex-row items-center gap-1.5 active:bg-[#1e2e48]"
+            accessibilityRole="button"
+            accessibilityLabel="Configurar ponto de partida e retorno à base"
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="location" size={15} color={configPonto.tipo === "hub" ? "#f59e0b" : "#38bdf8"} />
+            <Text className={`text-xs font-semibold ${configPonto.tipo === "hub" ? "text-amber-400" : "text-sky-400"}`}>
+              {configPonto.tipo === "hub" ? "Hub Fixo" : "GPS"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Card Resumo de Telemetria com Glanceability Solar */}
@@ -450,6 +484,22 @@ export default function HomeScreen() {
       <FechamentoTurnoModal
         visivel={modalFechamentoAberto}
         onFechar={() => setModalFechamentoAberto(false)}
+      />
+
+      {/* Modal de Configuração de Ponto de Partida e Retorno à Base */}
+      <ModalConfiguracaoPonto
+        visivel={modalConfigPontoAberto}
+        configInicial={configPonto}
+        onFechar={() => setModalConfigPontoAberto(false)}
+        onSalvar={(novaConfig) => {
+          setConfigPonto(novaConfig);
+          alertaApp(
+            "Configuração Salva",
+            `Ponto de partida configurado para ${
+              novaConfig.tipo === "hub" ? "Hub / Galpão" : "GPS Ao Vivo"
+            }${novaConfig.retornarABase ? " com retorno à base ativado." : "."}`,
+          );
+        }}
       />
 
       {/* Modal Explicativo dos Lotes do Google Maps */}

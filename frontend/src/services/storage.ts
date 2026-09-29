@@ -43,3 +43,35 @@ export async function limparCacheRotasLocalmente(): Promise<void> {
   }
 }
 
+export interface ConfigPontoPartida {
+  tipo: "gps" | "hub";
+  hubEndereco?: string;
+  hubCep?: string;
+  hubLat?: number;
+  hubLon?: number;
+  retornarABase: boolean;
+}
+
+const CHAVE_CONFIG_PONTO = "@delivery_fast:config_ponto_partida_v1";
+
+export async function salvarConfigPontoPartida(config: ConfigPontoPartida): Promise<void> {
+  try {
+    await AsyncStorage.setItem(CHAVE_CONFIG_PONTO, JSON.stringify(config));
+  } catch (error) {
+    console.error("Erro ao salvar config do ponto de partida:", error);
+  }
+}
+
+export async function carregarConfigPontoPartida(): Promise<ConfigPontoPartida> {
+  try {
+    const salvo = await AsyncStorage.getItem(CHAVE_CONFIG_PONTO);
+    if (salvo) {
+      return JSON.parse(salvo);
+    }
+  } catch (error) {
+    console.error("Erro ao carregar config do ponto de partida:", error);
+  }
+  return { tipo: "gps", retornarABase: false };
+}
+
+

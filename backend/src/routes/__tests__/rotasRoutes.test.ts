@@ -231,6 +231,42 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       // Checagem de Segurança: Verifica se o update atualiza apenas a rota do entregador dono
       expect(mockEq).toHaveBeenCalledWith("entregador_id", TEST_USER_ID);
     });
+
+    it("Deve otimizar as entregas usando ponto fixo (Hub) e retornarABase=true", async () => {
+      const mockEntregasDB = [{ id: "10", rua: "Rua A", lat: -28.298, lon: -54.263 }];
+
+      mockOrder.mockResolvedValueOnce({ data: mockEntregasDB, error: null });
+      mockedAxios.get.mockResolvedValueOnce({
+        data: {
+          code: "Ok",
+          waypoints: [{ waypoint_index: 0 }, { waypoint_index: 1 }],
+          trips: [{ distance: 5000, duration: 500 }],
+        },
+      });
+
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/v1/rotas/otimizar",
+        payload: {
+          origemFixa: {
+            lat: -28.295,
+            lon: -54.26,
+            endereco: "Galpão Central",
+          },
+          retornarABase: true,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect.stringContaining("/trip/v1/driving/"),
+        expect.objectContaining({
+          params: expect.objectContaining({
+            roundtrip: true,
+          }),
+        }),
+      );
+    });
   });
 
   describe("PUT /api/v1/entregas/:id", () => {

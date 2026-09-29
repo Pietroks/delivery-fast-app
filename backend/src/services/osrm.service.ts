@@ -24,7 +24,7 @@ export function calcularDistanciaHaversineMetros(lat1: number, lon1: number, lat
   return R * c;
 }
 
-export function resolverTspLocal(pontos: PontoRota[]): PontoRota[] {
+export function resolverTspLocal(pontos: PontoRota[], opcoes?: { retornarABase?: boolean | undefined }): PontoRota[] {
   if (pontos.length <= 2) return [...pontos];
 
   const primeiro = pontos[0];
@@ -74,7 +74,7 @@ export function resolverTspLocal(pontos: PontoRota[]): PontoRota[] {
 
       for (let k = i + 1; k < rota.length; k++) {
         const pK = rota[k];
-        const pNext = k + 1 < rota.length ? rota[k + 1] : undefined;
+        const pNext = k + 1 < rota.length ? rota[k + 1] : (opcoes?.retornarABase ? rota[0] : undefined);
         if (!pK) continue;
 
         const dAtual =
@@ -97,7 +97,7 @@ export function resolverTspLocal(pontos: PontoRota[]): PontoRota[] {
   return rota;
 }
 
-export async function otimizarSequencia(pontos: PontoRota[]) {
+export async function otimizarSequencia(pontos: PontoRota[], opcoes?: { retornarABase?: boolean | undefined }) {
   if (!pontos || pontos.length === 0) {
     return [];
   }
@@ -127,11 +127,16 @@ export async function otimizarSequencia(pontos: PontoRota[]) {
     const coordenadasString = pontosValidos.map((ponto) => `${ponto.lon},${ponto.lat}`).join(";");
     const url = `https://router.project-osrm.org/trip/v1/driving/${coordenadasString}`;
 
+    const paramsOsrm: Record<string, any> = {
+      source: "first",
+      roundtrip: !!opcoes?.retornarABase,
+    };
+    if (opcoes?.retornarABase) {
+      paramsOsrm.destination = "first";
+    }
+
     const response = await axios.get(url, {
-      params: {
-        source: "first",
-        roundtrip: false,
-      },
+      params: paramsOsrm,
       headers: {
         "User-Agent": "DeliveryFastApp/1.0",
       },
@@ -161,7 +166,7 @@ export async function otimizarSequencia(pontos: PontoRota[]) {
 
   // Fallback seguro: se OSRM falhar, der timeout ou retornar inválido, usa Nearest Neighbor + 2-Opt local
   if (!pontosOrdenados || pontosOrdenados.length === 0) {
-    const resolvidoLocal = resolverTspLocal(pontosValidos);
+    const resolvidoLocal = resolverTspLocal(pontosValidos, opcoes);
     pontosOrdenados = resolvidoLocal.map((item, index) => ({
       ordem: index + 1,
       id: item.id,

@@ -1,8 +1,16 @@
 import { z } from "zod";
 
+export const origemFixaSchema = z.object({
+  lat: z.number(),
+  lon: z.number(),
+  endereco: z.string().optional(),
+});
+
 export const otimizarRotaSchema = z.object({
   latUsuario: z.number().optional(),
   lonUsuario: z.number().optional(),
+  origemFixa: origemFixaSchema.optional(),
+  retornarABase: z.boolean().optional(),
 });
 
 export type OtimizarRotaInput = z.infer<typeof otimizarRotaSchema>;

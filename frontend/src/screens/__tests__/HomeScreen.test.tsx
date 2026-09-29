@@ -37,6 +37,8 @@ jest.mock("../../services/location", () => ({
 jest.mock("../../services/storage", () => ({
   carregarRotasLocalmente: jest.fn(() => Promise.resolve(null)),
   salvarRotasLocalmente: jest.fn(() => Promise.resolve()),
+  carregarConfigPontoPartida: jest.fn(() => Promise.resolve({ tipo: "gps", retornarABase: false })),
+  salvarConfigPontoPartida: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock("../../services/api", () => ({
@@ -197,5 +199,20 @@ describe("Tela: HomeScreen", () => {
 
     expect(getByText("Por que dividir em lotes de 10?")).toBeTruthy();
     expect(getByText("ENTENDI, VAMOS RODAR!")).toBeTruthy();
+  });
+
+  it("Deve abrir o modal de configuração de ponto de partida e retorno ao clicar no botão do cabeçalho", async () => {
+    const { getByLabelText, getByText } = render(<HomeScreen />);
+
+    await waitFor(() => {
+      expect(getByLabelText("Configurar ponto de partida e retorno à base")).toBeTruthy();
+    });
+
+    fireEvent.press(getByLabelText("Configurar ponto de partida e retorno à base"));
+
+    await waitFor(() => {
+      expect(getByText("Ponto de Partida e Retorno")).toBeTruthy();
+      expect(getByText("Retorno à Base no Final")).toBeTruthy();
+    });
   });
 });
