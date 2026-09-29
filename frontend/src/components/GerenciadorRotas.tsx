@@ -7,6 +7,7 @@ import { Parada } from "../screens/HomeScreen";
 import { api } from "../services/api";
 import { ComprovanteEntregaModal, DadosComprovante } from "./ComprovanteEntregaModal";
 import { alertaApp } from "../contexts/AlertContext";
+import { abrirRotaGoogleMaps } from "../utils/navigation";
 
 interface GerenciadorRotasProps {
   paradas: Parada[];
@@ -390,39 +391,50 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
               </TouchableOpacity>
             </View>
 
-            {/* Barra Tática de Ações: Discador, WhatsApp e Conclusão Primária */}
+            {/* Barra Tática de Ações: GPS, Discador, WhatsApp e Conclusão Primária */}
             <View className="flex-row items-center gap-2 mt-3 pt-2.5 border-t border-[#22334f]">
+              {/* Botão GPS Direto para esta entrega */}
+              <TouchableOpacity
+                onPress={() => abrirRotaGoogleMaps([item])}
+                className="flex-row items-center justify-center bg-[#1e2e48] border border-sky-500/40 px-3 min-h-[48px] rounded-xl active:bg-[#0b1320]"
+                accessibilityRole="button"
+                accessibilityLabel="Abrir rota no GPS para esta entrega"
+              >
+                <Ionicons name="navigate-outline" size={16} color="#38bdf8" style={{ marginRight: 4 }} />
+                <Text className="text-sky-400 text-xs font-bold">GPS</Text>
+              </TouchableOpacity>
+
               {/* Botão Ligar (Discador Telefônico Nativo) */}
               <TouchableOpacity
                 onPress={() => ligarParaCliente(item.telefone)}
-                className="flex-row items-center justify-center bg-[#1e2e48] border border-[#22334f] px-3.5 min-h-[48px] rounded-xl active:bg-[#0b1320]"
+                className="flex-row items-center justify-center bg-[#1e2e48] border border-[#22334f] px-3 min-h-[48px] rounded-xl active:bg-[#0b1320]"
                 accessibilityRole="button"
                 accessibilityLabel="Ligar para o cliente"
               >
-                <Ionicons name="call-outline" size={16} color="#60a5fa" style={{ marginRight: 6 }} />
+                <Ionicons name="call-outline" size={16} color="#60a5fa" style={{ marginRight: 4 }} />
                 <Text className="text-blue-400 text-xs font-bold">Ligar</Text>
               </TouchableOpacity>
 
               {/* Botão WhatsApp */}
               <TouchableOpacity
                 onPress={() => abrirWhatsapp(item.telefone, item.nomeDestinatario)}
-                className="flex-row items-center justify-center bg-[#1e2e48] border border-emerald-500/30 px-3.5 min-h-[48px] rounded-xl active:bg-[#0b1320]"
+                className="flex-row items-center justify-center bg-[#1e2e48] border border-emerald-500/30 px-3 min-h-[48px] rounded-xl active:bg-[#0b1320]"
                 accessibilityRole="button"
                 accessibilityLabel="Enviar mensagem no WhatsApp"
               >
-                <Ionicons name="logo-whatsapp" size={16} color="#22c55e" style={{ marginRight: 6 }} />
+                <Ionicons name="logo-whatsapp" size={16} color="#22c55e" style={{ marginRight: 4 }} />
                 <Text className="text-emerald-400 text-xs font-bold">WhatsApp</Text>
               </TouchableOpacity>
 
               {/* Botão Primário: Concluir Entrega / Registrar Comprovante */}
               <TouchableOpacity
                 onPress={() => handleAbrirComprovante(item)}
-                className="flex-1 flex-row items-center justify-center bg-[#22c55e] min-h-[48px] px-3 rounded-xl active:bg-[#16a34a]"
+                className="flex-1 flex-row items-center justify-center bg-[#22c55e] min-h-[48px] px-2.5 rounded-xl active:bg-[#16a34a]"
                 accessibilityRole="button"
                 accessibilityLabel={`Concluir entrega para ${item.rua}`}
               >
-                <Ionicons name="checkmark-circle-outline" size={18} color="#000000" style={{ marginRight: 6 }} />
-                <Text className="text-black text-xs font-black">Concluir Entrega</Text>
+                <Ionicons name="checkmark-circle-outline" size={17} color="#000000" style={{ marginRight: 4 }} />
+                <Text className="text-black text-xs font-black" numberOfLines={1}>Concluir Entrega</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -482,6 +494,22 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
             </View>
 
             <View className="gap-2.5">
+              <TouchableOpacity
+                onPress={() => {
+                  if (paradaOpcoes) {
+                    const p = paradaOpcoes.parada;
+                    setParadaOpcoes(null);
+                    abrirRotaGoogleMaps([p]);
+                  }
+                }}
+                className="flex-row items-center min-h-[48px] px-4 rounded-xl bg-[#1e2e48] border border-sky-500/40 active:bg-[#0b1320]"
+                accessibilityRole="button"
+                accessibilityLabel="Traçar rota no GPS para este endereço"
+              >
+                <Ionicons name="navigate-outline" size={18} color="#38bdf8" />
+                <Text className="text-sky-400 text-xs font-semibold ml-3">Traçar rota no GPS</Text>
+              </TouchableOpacity>
+
               {paradaOpcoes && paradaOpcoes.index > 0 && (
                 <TouchableOpacity
                   onPress={() => {

@@ -14,9 +14,18 @@ describe("Utilitário: navigation (abrirRotaGoogleMaps e calcularLotes)", () => 
     expect(Linking.openURL).not.toHaveBeenCalled();
   });
 
-  test("Deve abrir rota direta para 1 entrega", async () => {
+  test("Deve abrir rota direta para 1 entrega com Current+Location por padrão", async () => {
     await abrirRotaGoogleMaps([{ rua: "Rua A, 100" }]);
-    expect(Linking.openURL).toHaveBeenCalledWith(expect.stringContaining("destination=Rua%20A%2C%20100"));
+    expect(Linking.openURL).toHaveBeenCalledWith(
+      expect.stringContaining("origin=Current+Location&destination=Rua%20A%2C%20100"),
+    );
+  });
+
+  test("Deve abrir rota direta para 1 entrega usando GPS do motorista como origin", async () => {
+    await abrirRotaGoogleMaps([{ rua: "Rua A, 100" }], 0, { lat: -28.298, lon: -54.263 });
+    expect(Linking.openURL).toHaveBeenCalledWith(
+      expect.stringContaining("origin=-28.298,-54.263&destination=Rua%20A%2C%20100"),
+    );
   });
 
   test("Deve limitar a 10 paradas e alertar caso a lista tenha mais de 10 entregas", async () => {

@@ -113,7 +113,8 @@ export default function HomeScreen() {
     }
 
     try {
-      await abrirRotaGoogleMaps(rotas, loteAtivoIndex);
+      const gps = await obterCoordenadasGPS();
+      await abrirRotaGoogleMaps(rotas, loteAtivoIndex, gps);
     } catch {
       alertaApp("Erro", "Não foi possível abrir o Google Maps.");
     }

@@ -3,6 +3,7 @@ import { render, fireEvent, waitFor, act } from "@testing-library/react-native";
 import { Alert, Linking, TouchableOpacity, FlatList } from "react-native";
 import { api } from "../../services/api";
 import { GerenciadorRotas } from "../../components/GerenciadorRotas";
+import * as navigationUtils from "../../utils/navigation";
 
 const mockNavigate = jest.fn();
 jest.mock("@react-navigation/native", () => ({
@@ -272,5 +273,27 @@ describe("Componente: GerenciadorRotas", () => {
 
     expect(getByText("Modo Offline Ativo")).toBeTruthy();
     expect(getByText(/salvas no aparelho/)).toBeTruthy();
+  });
+
+  test("Deve chamar abrirRotaGoogleMaps ao clicar no botão GPS de uma entrega", async () => {
+    const spyNavegar = jest
+      .spyOn(navigationUtils, "abrirRotaGoogleMaps")
+      .mockImplementation(() => Promise.resolve());
+
+    const { getAllByText } = render(
+      <GerenciadorRotas
+        paradas={mockParadas}
+        onAtualizarLista={mockOnAtualizarLista}
+        onReordenarLocal={mockOnReordenarLocal}
+      />,
+    );
+
+    const botoesGps = getAllByText("GPS");
+    expect(botoesGps.length).toBeGreaterThan(0);
+    fireEvent.press(botoesGps[0]);
+
+    await waitFor(() => {
+      expect(spyNavegar).toHaveBeenCalledWith([mockParadas[0]]);
+    });
   });
 });

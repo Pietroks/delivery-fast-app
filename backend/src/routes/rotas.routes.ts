@@ -466,6 +466,25 @@ async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyRep
   if (error) return reply.status(500).send({ sucesso: false, erro: "Erro ao consultar o banco." });
 
   const paradasFormatadas = formatarParadas((entregas as EntregaDB[]) || []);
+
+  // Auto-cura de coordenadas para entregas salvas sem geocodificação válida
+  for (const item of paradasFormatadas) {
+    if (item.lat === 0 || item.lon === 0) {
+      geocodificarNoCadastro(item.rua, undefined, item.bairro, undefined, undefined, Number(lat), Number(lon))
+        .then(async (novasCoords) => {
+          if (novasCoords.lat !== 0 && novasCoords.lon !== 0) {
+            item.lat = novasCoords.lat;
+            item.lon = novasCoords.lon;
+            await supabase
+              .from("entregas")
+              .update({ lat: novasCoords.lat, lon: novasCoords.lon })
+              .eq("id", item.id);
+          }
+        })
+        .catch(() => {});
+    }
+  }
+
   let distanciaMetros = 0;
   let duracaoSegundos = 0;
 

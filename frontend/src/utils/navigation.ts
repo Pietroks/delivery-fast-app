@@ -1,4 +1,4 @@
-import { Linking } from "react-native";
+import { Linking, Platform } from "react-native";
 import { alertaApp } from "../contexts/AlertContext";
 
 export interface ParadaNavegacao {
@@ -46,19 +46,36 @@ export function calcularLotes<T>(itens: T[], tamanhoLote: number = LIMITE_MAXIMO
   return lotes;
 }
 
-export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[], loteIndex: number = 0) {
+export async function abrirRotaGoogleMaps(
+  paradas: ParadaNavegacao[],
+  loteIndex: number = 0,
+  gpsUsuario?: { lat?: number; lon?: number },
+) {
   if (!paradas || paradas.length === 0) {
     alertaApp("Atenção", "Nenhuma entrega cadastrada para iniciar a rota.");
     return;
   }
 
   try {
+    const origemParam =
+      gpsUsuario?.lat && gpsUsuario?.lon ? `${gpsUsuario.lat},${gpsUsuario.lon}` : "Current+Location";
+
     // 1 única entrega: Sua Localização Atual ➔ Entrega 1
     if (paradas.length === 1) {
       const destinoCodificado = formatarPontoMaps(paradas[0]);
       if (!destinoCodificado) return;
 
-      const urlRotaDireta = `https://www.google.com/maps/dir/?api=1&destination=${destinoCodificado}&travelmode=driving`;
+      // No Android físico, tenta o Intent nativo do app Google Maps em modo navegação curva a curva
+      if (Platform.OS === "android") {
+        const intentNativo = `google.navigation:q=${destinoCodificado}&mode=d`;
+        const suportaNativo = await Linking.canOpenURL(intentNativo).catch(() => false);
+        if (suportaNativo) {
+          await Linking.openURL(intentNativo);
+          return;
+        }
+      }
+
+      const urlRotaDireta = `https://www.google.com/maps/dir/?api=1&origin=${origemParam}&destination=${destinoCodificado}&travelmode=driving`;
       await Linking.openURL(urlRotaDireta);
       return;
     }
@@ -91,7 +108,7 @@ export async function abrirRotaGoogleMaps(paradas: ParadaNavegacao[], loteIndex:
       return;
     }
 
-    let urlRota = `https://www.google.com/maps/dir/?api=1&destination=${destinoFinal}&travelmode=driving`;
+    let urlRota = `https://www.google.com/maps/dir/?api=1&origin=${origemParam}&destination=${destinoFinal}&travelmode=driving`;
 
     if (waypoints.length > 0) {
       urlRota += `&waypoints=${waypoints}`;
