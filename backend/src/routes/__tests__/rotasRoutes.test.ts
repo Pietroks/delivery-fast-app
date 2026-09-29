@@ -186,6 +186,9 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       const response = await app.inject({ method: "GET", url: "/api/v1/rotas/atual" });
 
       expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.idParadaAtiva).toBe("1");
+      expect(body.paradaAtiva?.rua).toBe("Rua A");
 
       // Checagem de Segurança: Verifica se filtrou as rotas pelo ID do usuário
       expect(mockEq).toHaveBeenCalledWith("entregador_id", TEST_USER_ID);

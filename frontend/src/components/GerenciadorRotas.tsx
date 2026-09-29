@@ -8,6 +8,7 @@ import { api } from "../services/api";
 import { ComprovanteEntregaModal, DadosComprovante } from "./ComprovanteEntregaModal";
 import { alertaApp } from "../contexts/AlertContext";
 import { abrirRotaGoogleMaps, abrirNavegacaoIndividual } from "../utils/navigation";
+import { CardParadaAtiva } from "./CardParadaAtiva";
 
 interface GerenciadorRotasProps {
   paradas: Parada[];
@@ -309,6 +310,33 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
     [listaLocal, onAtualizarLista, onReordenarLocal, restaurarLista, hapticaErro],
   );
 
+  const handleInsucesso = useCallback(
+    (item: Parada) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      alertaApp(
+        "Problema na Entrega",
+        `Não foi possível concluir a entrega para "${item.rua}"?`,
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Mover para o final da rota",
+            onPress: () => {
+              const indexAtual = listaLocal.findIndex((p) => p.id === item.id);
+              if (indexAtual >= 0 && listaLocal.length > 1) {
+                const novaLista = [...listaLocal];
+                const [removido] = novaLista.splice(indexAtual, 1);
+                novaLista.push(removido);
+                reordenarEOtimizarUI(novaLista);
+                hapticaSucesso();
+              }
+            },
+          },
+        ],
+      );
+    },
+    [listaLocal, reordenarEOtimizarUI, hapticaSucesso],
+  );
+
   const handleSalvarEdicao = async () => {
     if (!paradaEmEdicao || !textoEditado.trim()) return;
 
@@ -356,91 +384,119 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
             <Text className="text-[#94a3b8] text-xs mt-2">Nenhuma rota pendente no momento.</Text>
           </View>
         }
-        renderItem={({ item, index }) => (
-          <View className="bg-[#152033] p-3.5 rounded-xl mb-2.5 border border-[#22334f]">
-            {/* Topo do Card: Número da Parada, Endereço Completo e Botão de Opções */}
-            <View className="flex-row items-start justify-between">
-              {/* Badge de Ordem da Parada */}
-              <View className="bg-[#1e2e48] px-2.5 py-1.5 rounded-lg border border-[#22334f] mr-2.5 items-center justify-center min-w-[36px]">
-                <Text className="text-white font-black text-xs" maxFontSizeMultiplier={1.3}>
-                  #{index + 1}
-                </Text>
+        renderItem={({ item, index }) => {
+          if (index === 0) {
+            return (
+              <View>
+                <CardParadaAtiva
+                  parada={item}
+                  index={0}
+                  totalParadas={listaLocal.length}
+                  onConcluir={handleAbrirComprovante}
+                  onNavegarGPS={(p) => abrirNavegacaoIndividual(p, gpsUsuario)}
+                  onLigar={ligarParaCliente}
+                  onWhatsapp={abrirWhatsapp}
+                  onOpcoes={(p, idx) => setParadaOpcoes({ parada: p, index: idx })}
+                  onInsucesso={handleInsucesso}
+                />
+                {listaLocal.length > 1 && (
+                  <View className="flex-row items-center justify-between mt-1 mb-2.5 px-1">
+                    <Text className="text-[#94a3b8] text-xs font-bold uppercase tracking-wider">
+                      Próximas Paradas ({listaLocal.length - 1})
+                    </Text>
+                    <Text className="text-[#64748b] text-[11px]">Na sequência otimizada</Text>
+                  </View>
+                )}
               </View>
+            );
+          }
 
-              {/* Informações de Endereço - 2 Linhas Sem Truncamento Prematuro */}
-              <View className="flex-1 mr-2">
-                <Text className="text-white text-sm font-semibold leading-5" numberOfLines={2}>
-                  {item.rua}
-                </Text>
-                {item.nomeDestinatario ? (
-                  <Text className="text-emerald-400 text-xs font-medium mt-0.5" numberOfLines={1}>
-                    Destinatário: {item.nomeDestinatario}
+          return (
+            <View className="bg-[#152033] p-3.5 rounded-xl mb-2.5 border border-[#22334f]">
+              {/* Topo do Card: Número da Parada, Endereço Completo e Botão de Opções */}
+              <View className="flex-row items-start justify-between">
+                {/* Badge de Ordem da Parada */}
+                <View className="bg-[#1e2e48] px-2.5 py-1.5 rounded-lg border border-[#22334f] mr-2.5 items-center justify-center min-w-[36px]">
+                  <Text className="text-white font-black text-xs" maxFontSizeMultiplier={1.3}>
+                    #{index + 1}
                   </Text>
-                ) : null}
-                {item.bairro ? <Text className="text-[#94a3b8] text-xs mt-0.5">{item.bairro}</Text> : null}
-                {item.horarioEstimado ? <Text className="text-[#64748b] text-[11px] mt-0.5">{item.horarioEstimado}</Text> : null}
+                </View>
+
+                {/* Informações de Endereço - 2 Linhas Sem Truncamento Prematuro */}
+                <View className="flex-1 mr-2">
+                  <Text className="text-white text-sm font-semibold leading-5" numberOfLines={2}>
+                    {item.rua}
+                  </Text>
+                  {item.nomeDestinatario ? (
+                    <Text className="text-emerald-400 text-xs font-medium mt-0.5" numberOfLines={1}>
+                      Destinatário: {item.nomeDestinatario}
+                    </Text>
+                  ) : null}
+                  {item.bairro ? <Text className="text-[#94a3b8] text-xs mt-0.5">{item.bairro}</Text> : null}
+                  {item.horarioEstimado ? <Text className="text-[#64748b] text-[11px] mt-0.5">{item.horarioEstimado}</Text> : null}
+                </View>
+
+                {/* Botão de Opções da Parada (Menu Seguro com Alvo >= 48dp) */}
+                <TouchableOpacity
+                  onPress={() => setParadaOpcoes({ parada: item, index })}
+                  className="w-12 h-12 rounded-xl bg-[#1e2e48] border border-[#22334f] items-center justify-center active:bg-[#0b1320]"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Opções da entrega ${index + 1}`}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Ionicons name="ellipsis-vertical" size={18} color="#94a3b8" />
+                </TouchableOpacity>
               </View>
 
-              {/* Botão de Opções da Parada (Menu Seguro com Alvo >= 48dp) */}
-              <TouchableOpacity
-                onPress={() => setParadaOpcoes({ parada: item, index })}
-                className="w-12 h-12 rounded-xl bg-[#1e2e48] border border-[#22334f] items-center justify-center active:bg-[#0b1320]"
-                accessibilityRole="button"
-                accessibilityLabel={`Opções da entrega ${index + 1}`}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-              >
-                <Ionicons name="ellipsis-vertical" size={18} color="#94a3b8" />
-              </TouchableOpacity>
+              {/* Barra Tática de Ações: GPS, Discador, WhatsApp e Conclusão Primária */}
+              <View className="flex-row items-center gap-2 mt-3 pt-2.5 border-t border-[#22334f]">
+                {/* Botão GPS Direto para esta entrega */}
+                <TouchableOpacity
+                  onPress={() => abrirNavegacaoIndividual(item, gpsUsuario)}
+                  className="flex-row items-center justify-center bg-[#1e2e48] border border-sky-500/40 px-3 min-h-[48px] rounded-xl active:bg-[#0b1320]"
+                  accessibilityRole="button"
+                  accessibilityLabel="Abrir rota no GPS para esta entrega"
+                >
+                  <Ionicons name="navigate-outline" size={16} color="#38bdf8" style={{ marginRight: 4 }} />
+                  <Text className="text-sky-400 text-xs font-bold">GPS</Text>
+                </TouchableOpacity>
+
+                {/* Botão Ligar (Discador Telefônico Nativo) */}
+                <TouchableOpacity
+                  onPress={() => ligarParaCliente(item.telefone)}
+                  className="flex-row items-center justify-center bg-[#1e2e48] border border-[#22334f] px-3 min-h-[48px] rounded-xl active:bg-[#0b1320]"
+                  accessibilityRole="button"
+                  accessibilityLabel="Ligar para o cliente"
+                >
+                  <Ionicons name="call-outline" size={16} color="#60a5fa" style={{ marginRight: 4 }} />
+                  <Text className="text-blue-400 text-xs font-bold">Ligar</Text>
+                </TouchableOpacity>
+
+                {/* Botão WhatsApp */}
+                <TouchableOpacity
+                  onPress={() => abrirWhatsapp(item.telefone, item.nomeDestinatario)}
+                  className="flex-row items-center justify-center bg-[#1e2e48] border border-emerald-500/30 px-3 min-h-[48px] rounded-xl active:bg-[#0b1320]"
+                  accessibilityRole="button"
+                  accessibilityLabel="Enviar mensagem no WhatsApp"
+                >
+                  <Ionicons name="logo-whatsapp" size={16} color="#22c55e" style={{ marginRight: 4 }} />
+                  <Text className="text-emerald-400 text-xs font-bold">WhatsApp</Text>
+                </TouchableOpacity>
+
+                {/* Botão Primário: Concluir Entrega / Registrar Comprovante */}
+                <TouchableOpacity
+                  onPress={() => handleAbrirComprovante(item)}
+                  className="flex-1 flex-row items-center justify-center bg-[#22c55e] min-h-[48px] px-2.5 rounded-xl active:bg-[#16a34a]"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Concluir entrega para ${item.rua}`}
+                >
+                  <Ionicons name="checkmark-circle-outline" size={17} color="#000000" style={{ marginRight: 4 }} />
+                  <Text className="text-black text-xs font-black" numberOfLines={1}>Concluir Entrega</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            {/* Barra Tática de Ações: GPS, Discador, WhatsApp e Conclusão Primária */}
-            <View className="flex-row items-center gap-2 mt-3 pt-2.5 border-t border-[#22334f]">
-              {/* Botão GPS Direto para esta entrega */}
-              <TouchableOpacity
-                onPress={() => abrirNavegacaoIndividual(item, gpsUsuario)}
-                className="flex-row items-center justify-center bg-[#1e2e48] border border-sky-500/40 px-3 min-h-[48px] rounded-xl active:bg-[#0b1320]"
-                accessibilityRole="button"
-                accessibilityLabel="Abrir rota no GPS para esta entrega"
-              >
-                <Ionicons name="navigate-outline" size={16} color="#38bdf8" style={{ marginRight: 4 }} />
-                <Text className="text-sky-400 text-xs font-bold">GPS</Text>
-              </TouchableOpacity>
-
-              {/* Botão Ligar (Discador Telefônico Nativo) */}
-              <TouchableOpacity
-                onPress={() => ligarParaCliente(item.telefone)}
-                className="flex-row items-center justify-center bg-[#1e2e48] border border-[#22334f] px-3 min-h-[48px] rounded-xl active:bg-[#0b1320]"
-                accessibilityRole="button"
-                accessibilityLabel="Ligar para o cliente"
-              >
-                <Ionicons name="call-outline" size={16} color="#60a5fa" style={{ marginRight: 4 }} />
-                <Text className="text-blue-400 text-xs font-bold">Ligar</Text>
-              </TouchableOpacity>
-
-              {/* Botão WhatsApp */}
-              <TouchableOpacity
-                onPress={() => abrirWhatsapp(item.telefone, item.nomeDestinatario)}
-                className="flex-row items-center justify-center bg-[#1e2e48] border border-emerald-500/30 px-3 min-h-[48px] rounded-xl active:bg-[#0b1320]"
-                accessibilityRole="button"
-                accessibilityLabel="Enviar mensagem no WhatsApp"
-              >
-                <Ionicons name="logo-whatsapp" size={16} color="#22c55e" style={{ marginRight: 4 }} />
-                <Text className="text-emerald-400 text-xs font-bold">WhatsApp</Text>
-              </TouchableOpacity>
-
-              {/* Botão Primário: Concluir Entrega / Registrar Comprovante */}
-              <TouchableOpacity
-                onPress={() => handleAbrirComprovante(item)}
-                className="flex-1 flex-row items-center justify-center bg-[#22c55e] min-h-[48px] px-2.5 rounded-xl active:bg-[#16a34a]"
-                accessibilityRole="button"
-                accessibilityLabel={`Concluir entrega para ${item.rua}`}
-              >
-                <Ionicons name="checkmark-circle-outline" size={17} color="#000000" style={{ marginRight: 4 }} />
-                <Text className="text-black text-xs font-black" numberOfLines={1}>Concluir Entrega</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+          );
+        }}
       />
 
       {/* Toast / Snackbar Tático de Desfazer (5 segundos de resguardo) */}

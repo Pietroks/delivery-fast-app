@@ -535,6 +535,8 @@ async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyRep
   return reply.status(200).send({
     paradas: paradasFormatadas,
     resumo: calcularResumoReal(paradasFormatadas.length, distanciaMetros, duracaoSegundos),
+    idParadaAtiva: paradasFormatadas[0]?.id || null,
+    paradaAtiva: paradasFormatadas[0] || null,
   });
 }
 
