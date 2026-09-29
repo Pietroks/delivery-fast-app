@@ -44,6 +44,7 @@ export default function HomeScreen() {
   const [finalizando, setFinalizando] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+  const [gpsUsuario, setGpsUsuario] = useState<{ lat?: number; lon?: number } | undefined>();
 
   const obterCoordenadasGPS = async (): Promise<{ lat?: number; lon?: number }> => {
     try {
@@ -71,6 +72,9 @@ export default function HomeScreen() {
     setCarregando(true);
     try {
       const gps = await obterCoordenadasGPS();
+      if (gps.lat && gps.lon) {
+        setGpsUsuario(gps);
+      }
       const config = gps.lat && gps.lon ? { params: { lat: gps.lat, lon: gps.lon } } : undefined;
       const response = config ? await api.get("/rotas/atual", config) : await api.get("/rotas/atual");
 
@@ -341,6 +345,7 @@ export default function HomeScreen() {
             refreshing={refreshing}
             onRefresh={onRefresh}
             isOffline={isOffline}
+            gpsUsuario={gpsUsuario}
           />
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} className="flex-1">

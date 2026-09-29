@@ -275,9 +275,9 @@ describe("Componente: GerenciadorRotas", () => {
     expect(getByText(/salvas no aparelho/)).toBeTruthy();
   });
 
-  test("Deve chamar abrirRotaGoogleMaps ao clicar no botão GPS de uma entrega", async () => {
+  test("Deve chamar abrirNavegacaoIndividual ao clicar no botão GPS de uma entrega", async () => {
     const spyNavegar = jest
-      .spyOn(navigationUtils, "abrirRotaGoogleMaps")
+      .spyOn(navigationUtils, "abrirNavegacaoIndividual")
       .mockImplementation(() => Promise.resolve());
 
     const { getAllByText } = render(
@@ -293,7 +293,7 @@ describe("Componente: GerenciadorRotas", () => {
     fireEvent.press(botoesGps[0]);
 
     await waitFor(() => {
-      expect(spyNavegar).toHaveBeenCalledWith([mockParadas[0]]);
+      expect(spyNavegar).toHaveBeenCalledWith(mockParadas[0], undefined);
     });
   });
 });

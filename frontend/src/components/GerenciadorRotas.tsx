@@ -7,7 +7,7 @@ import { Parada } from "../screens/HomeScreen";
 import { api } from "../services/api";
 import { ComprovanteEntregaModal, DadosComprovante } from "./ComprovanteEntregaModal";
 import { alertaApp } from "../contexts/AlertContext";
-import { abrirRotaGoogleMaps } from "../utils/navigation";
+import { abrirRotaGoogleMaps, abrirNavegacaoIndividual } from "../utils/navigation";
 
 interface GerenciadorRotasProps {
   paradas: Parada[];
@@ -17,6 +17,7 @@ interface GerenciadorRotasProps {
   refreshing?: boolean;
   onRefresh?: () => void;
   isOffline?: boolean;
+  gpsUsuario?: { lat?: number; lon?: number };
 }
 
 type EstadoCarregamento = "nenhum" | "atualizacao" | "conclusao" | "exclusao";
@@ -35,6 +36,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
   refreshing,
   onRefresh,
   isOffline = false,
+  gpsUsuario,
 }) => {
   const navigation = useNavigation<any>();
 
@@ -395,7 +397,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
             <View className="flex-row items-center gap-2 mt-3 pt-2.5 border-t border-[#22334f]">
               {/* Botão GPS Direto para esta entrega */}
               <TouchableOpacity
-                onPress={() => abrirRotaGoogleMaps([item])}
+                onPress={() => abrirNavegacaoIndividual(item, gpsUsuario)}
                 className="flex-row items-center justify-center bg-[#1e2e48] border border-sky-500/40 px-3 min-h-[48px] rounded-xl active:bg-[#0b1320]"
                 accessibilityRole="button"
                 accessibilityLabel="Abrir rota no GPS para esta entrega"
@@ -499,7 +501,7 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
                   if (paradaOpcoes) {
                     const p = paradaOpcoes.parada;
                     setParadaOpcoes(null);
-                    abrirRotaGoogleMaps([p]);
+                    abrirNavegacaoIndividual(p, gpsUsuario);
                   }
                 }}
                 className="flex-row items-center min-h-[48px] px-4 rounded-xl bg-[#1e2e48] border border-sky-500/40 active:bg-[#0b1320]"

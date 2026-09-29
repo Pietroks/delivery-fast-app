@@ -32,6 +32,49 @@ export function formatarPontoMaps(parada: ParadaNavegacao): string | null {
 }
 
 /**
+ * Abre a navegação curva a curva para uma única parada no Google Maps.
+ * No Android, tenta acionar o Intent nativo `google.navigation:q=...&mode=d`.
+ * Como fallback (iOS, Web ou se Intent indisponível), abre via URL universal
+ * com origem no GPS do usuário ou em Current+Location.
+ */
+export async function abrirNavegacaoIndividual(
+  parada: ParadaNavegacao,
+  gpsUsuario?: { lat?: number; lon?: number },
+) {
+  if (!parada) {
+    alertaApp("Erro", "Endereço de destino inválido.");
+    return;
+  }
+
+  try {
+    const destinoCodificado = formatarPontoMaps(parada);
+    if (!destinoCodificado) {
+      alertaApp("Erro", "Endereço de destino inválido.");
+      return;
+    }
+
+    const origemParam =
+      gpsUsuario?.lat && gpsUsuario?.lon ? `${gpsUsuario.lat},${gpsUsuario.lon}` : "Current+Location";
+
+    // No Android físico, tenta o Intent nativo do app Google Maps em modo navegação curva a curva
+    if (Platform.OS === "android") {
+      const intentNativo = `google.navigation:q=${destinoCodificado}&mode=d`;
+      const suportaNativo = await Linking.canOpenURL(intentNativo).catch(() => false);
+      if (suportaNativo) {
+        await Linking.openURL(intentNativo);
+        return;
+      }
+    }
+
+    const urlRotaDireta = `https://www.google.com/maps/dir/?api=1&origin=${origemParam}&destination=${destinoCodificado}&travelmode=driving`;
+    await Linking.openURL(urlRotaDireta);
+  } catch (error: unknown) {
+    const mensagem = error instanceof Error ? error.message : "Não foi possível abrir o Google Maps.";
+    alertaApp("Erro", mensagem);
+  }
+}
+
+/**
  * Abre o Google Maps traçando a rota partindo SEMPRE da localização atual do usuário (GPS)
  * cobrindo todas as entregas em sequência.
  */
@@ -56,29 +99,14 @@ export async function abrirRotaGoogleMaps(
     return;
   }
 
+  // 1 única entrega: Delega para a navegação curva a curva individual
+  if (paradas.length === 1) {
+    return await abrirNavegacaoIndividual(paradas[0], gpsUsuario);
+  }
+
   try {
     const origemParam =
       gpsUsuario?.lat && gpsUsuario?.lon ? `${gpsUsuario.lat},${gpsUsuario.lon}` : "Current+Location";
-
-    // 1 única entrega: Sua Localização Atual ➔ Entrega 1
-    if (paradas.length === 1) {
-      const destinoCodificado = formatarPontoMaps(paradas[0]);
-      if (!destinoCodificado) return;
-
-      // No Android físico, tenta o Intent nativo do app Google Maps em modo navegação curva a curva
-      if (Platform.OS === "android") {
-        const intentNativo = `google.navigation:q=${destinoCodificado}&mode=d`;
-        const suportaNativo = await Linking.canOpenURL(intentNativo).catch(() => false);
-        if (suportaNativo) {
-          await Linking.openURL(intentNativo);
-          return;
-        }
-      }
-
-      const urlRotaDireta = `https://www.google.com/maps/dir/?api=1&origin=${origemParam}&destination=${destinoCodificado}&travelmode=driving`;
-      await Linking.openURL(urlRotaDireta);
-      return;
-    }
 
     // Paginação de paradas por lotes de 10
     const todosLotes = calcularLotes(paradas, LIMITE_MAXIMO_PARADAS);
