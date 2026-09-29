@@ -20,6 +20,52 @@ export interface DetalhesLugar {
   cep: string;
 }
 
+/**
+ * Trava de Segurança Máxima: Limita estritamente a 298 requisições por dia.
+ * Ao atingir 298 chamadas no dia, o sistema para de chamar a API do Google e
+ * chaveia automaticamente para os provedores públicos gratuitos (BrasilAPI / Nominatim).
+ */
+export const LIMITE_DIARIO_GOOGLE = 298;
+
+let contadorDia = 0;
+let dataAtualContador = new Date().toISOString().slice(0, 10);
+
+export function resetarContadorGoogleParaTestes(): void {
+  contadorDia = 0;
+  dataAtualContador = new Date().toISOString().slice(0, 10);
+}
+
+export function obterStatusCotaGoogle() {
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (hoje !== dataAtualContador) {
+    dataAtualContador = hoje;
+    contadorDia = 0;
+  }
+  return {
+    usadasHoje: contadorDia,
+    limiteMaximo: LIMITE_DIARIO_GOOGLE,
+    disponiveis: Math.max(0, LIMITE_DIARIO_GOOGLE - contadorDia),
+  };
+}
+
+function checarERegistrarUsoGoogle(): boolean {
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (hoje !== dataAtualContador) {
+    dataAtualContador = hoje;
+    contadorDia = 0;
+  }
+
+  if (contadorDia >= LIMITE_DIARIO_GOOGLE) {
+    console.warn(
+      `⚠️ [Trava de Segurança Ativa] Limite de ${LIMITE_DIARIO_GOOGLE} buscas do Google Maps atingido hoje (${hoje}). Chaveando automaticamente para provedor gratuito.`,
+    );
+    return false;
+  }
+
+  contadorDia++;
+  return true;
+}
+
 export async function buscarSugestoesGoogle(
   input: string,
   latUsuario?: number,
@@ -27,6 +73,11 @@ export async function buscarSugestoesGoogle(
 ): Promise<SugestaoLugar[]> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey || !input || input.trim().length < 2) {
+    return [];
+  }
+
+  // Verifica a trava diária de 298 chamadas
+  if (!checarERegistrarUsoGoogle()) {
     return [];
   }
 
@@ -70,6 +121,11 @@ export async function buscarSugestoesGoogle(
 export async function obterDetalhesLugar(placeId: string): Promise<DetalhesLugar | null> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey || !placeId) {
+    return null;
+  }
+
+  // Verifica a trava diária de 298 chamadas
+  if (!checarERegistrarUsoGoogle()) {
     return null;
   }
 
@@ -136,6 +192,11 @@ export async function geocodificarTextoGoogle(
 ): Promise<{ lat: number; lon: number; enderecoFormatado?: string } | null> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey || !texto || texto.trim().length < 3) {
+    return null;
+  }
+
+  // Verifica a trava diária de 298 chamadas
+  if (!checarERegistrarUsoGoogle()) {
     return null;
   }
 

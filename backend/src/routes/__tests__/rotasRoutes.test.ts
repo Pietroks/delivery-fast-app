@@ -2,6 +2,11 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import Fastify from "fastify";
 import axios from "axios";
 import { rotasRoutes, normalizarNomeRua } from "../rotas.routes";
+import {
+  LIMITE_DIARIO_GOOGLE,
+  resetarContadorGoogleParaTestes,
+  obterStatusCotaGoogle,
+} from "../../services/googlePlaces.service";
 
 vi.mock("axios");
 const mockedAxios = vi.mocked(axios, true);
@@ -588,6 +593,39 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
       expect(body.local.lon).toBe(-54.261);
       expect(body.local.rua).toBe("Rua Marquês do Herval");
       expect(body.local.cidade).toBe("Santo Ângelo");
+    });
+
+    it("Deve bloquear chamadas ao Google ao atingir o limite diário de 298 buscas", async () => {
+      resetarContadorGoogleParaTestes();
+
+      const statusInicial = obterStatusCotaGoogle();
+      expect(statusInicial.limiteMaximo).toBe(298);
+      expect(statusInicial.usadasHoje).toBe(0);
+
+      // Simula o consumo de 298 requisições
+      for (let i = 0; i < 298; i++) {
+        mockedAxios.post.mockResolvedValueOnce({ data: { suggestions: [] } });
+        await app.inject({
+          method: "GET",
+          url: "/api/v1/locais/autocomplete?q=Teste",
+        });
+      }
+
+      const statusLotado = obterStatusCotaGoogle();
+      expect(statusLotado.usadasHoje).toBe(298);
+      expect(statusLotado.disponiveis).toBe(0);
+
+      // A 299ª requisição deve ser bloqueada de chamar o Google
+      const resBloqueada = await app.inject({
+        method: "GET",
+        url: "/api/v1/locais/autocomplete?q=Excedente",
+      });
+
+      expect(resBloqueada.statusCode).toBe(200);
+      const body = JSON.parse(resBloqueada.body);
+      expect(body.sugestoes).toEqual([]);
+
+      resetarContadorGoogleParaTestes();
     });
   });
 
