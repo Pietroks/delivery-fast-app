@@ -1,7 +1,10 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import path from "path";
 import ws from "ws";
 
+// Garante carregamento do .env tanto da pasta backend quanto da raiz
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL || "https://placeholder-project.supabase.co";
@@ -22,3 +25,28 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     transport: ws as any,
   },
 });
+
+/**
+ * Cria ou retorna uma instância do Supabase com o token do usuário autenticado no header.
+ * Isso permite que as regras de RLS (Row Level Security) identifiquem auth.uid() corretamente.
+ */
+export function obterSupabaseClient(token?: string): SupabaseClient {
+  if (token && process.env.NODE_ENV !== "test") {
+    const cleanToken = token.replace(/^Bearer\s+/i, "").trim();
+    return createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: false,
+      },
+      global: {
+        fetch: fetch,
+        headers: {
+          Authorization: `Bearer ${cleanToken}`,
+        },
+      },
+      realtime: {
+        transport: ws as any,
+      },
+    });
+  }
+  return supabase;
+}

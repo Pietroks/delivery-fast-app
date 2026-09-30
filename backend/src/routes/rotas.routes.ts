@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { supabase } from "../services/supabase";
+import { supabase, obterSupabaseClient } from "../services/supabase";
 import axios from "axios";
 import { otimizarSequencia, PontoRota, calcularDistanciaHaversineMetros } from "../services/osrm.service";
 import {
@@ -325,8 +325,13 @@ async function geocodificarNoCadastro(
 // Handlers Autenticados
 // ============================================================================
 
-async function obterProximaOrdem(userId: string): Promise<number> {
-  const { data: ultimas } = await supabase
+function getDB(request?: FastifyRequest) {
+  const token = (request as any)?.token || (request as any)?.headers?.authorization;
+  return obterSupabaseClient(token);
+}
+
+async function obterProximaOrdem(userId: string, db = supabase): Promise<number> {
+  const { data: ultimas } = await db
     .from("entregas")
     .select("ordem")
     .eq("entregador_id", userId)
@@ -356,10 +361,12 @@ async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply)
         ? { lat: body.lat, lon: body.lon }
         : await geocodificarNoCadastro(body.rua, body.numero, body.bairro, body.cidade, body.cep, body.latUsuario, body.lonUsuario);
 
-    // Calcula a próxima ordem sequencial para a nova entrega
-    const proximaOrdem = await obterProximaOrdem(userId);
+    const db = getDB(request);
 
-    const { data, error } = await supabase
+    // Calcula a próxima ordem sequencial para a nova entrega
+    const proximaOrdem = await obterProximaOrdem(userId, db);
+
+    const { data, error } = await db
       .from("entregas")
       .insert([
         {
@@ -379,10 +386,14 @@ async function criarEntregaHandler(request: FastifyRequest, reply: FastifyReply)
       .select()
       .single();
 
-    if (error) return reply.status(500).send({ sucesso: false, erro: "Erro ao salvar no banco de dados." });
+    if (error) {
+      console.error("❌ [Supabase Error - criarEntrega]:", error);
+      return reply.status(500).send({ sucesso: false, erro: error.message || "Erro ao salvar no banco de dados." });
+    }
     return reply.status(201).send({ sucesso: true, entrega: data });
-  } catch (error) {
-    return reply.status(500).send({ sucesso: false, erro: "Erro ao salvar no banco de dados." });
+  } catch (error: any) {
+    console.error("❌ [Catch Error - criarEntrega]:", error);
+    return reply.status(500).send({ sucesso: false, erro: error?.message || "Erro ao salvar no banco de dados." });
   }
 }
 
@@ -404,8 +415,10 @@ async function importarLoteHandler(request: FastifyRequest, reply: FastifyReply)
     const agora = new Date();
     const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
 
+    const db = getDB(request);
+
     // Busca a ordem mais alta atual para sequenciar o lote a partir dela
-    let proximaOrdem = await obterProximaOrdem(userId);
+    let proximaOrdem = await obterProximaOrdem(userId, db);
 
     const entregasProcessadas: any[] = [];
     for (let i = 0; i < entregas.length; i++) {
@@ -443,9 +456,12 @@ async function importarLoteHandler(request: FastifyRequest, reply: FastifyReply)
       }
     }
 
-    const { data, error } = await supabase.from("entregas").insert(entregasProcessadas).select();
+    const { data, error } = await db.from("entregas").insert(entregasProcessadas).select();
 
-    if (error) return reply.status(500).send({ sucesso: false, erro: "Erro ao salvar o lote no banco de dados." });
+    if (error) {
+      console.error("❌ [Supabase Error - importarLote]:", error);
+      return reply.status(500).send({ sucesso: false, erro: error.message || "Erro ao salvar o lote no banco de dados." });
+    }
 
     return reply.status(201).send({
       sucesso: true,
@@ -453,8 +469,9 @@ async function importarLoteHandler(request: FastifyRequest, reply: FastifyReply)
       total: entregasProcessadas.length,
       entregas: data,
     });
-  } catch (error) {
-    return reply.status(500).send({ sucesso: false, erro: "Falha ao processar lote de entregas." });
+  } catch (error: any) {
+    console.error("❌ [Catch Error - importarLote]:", error);
+    return reply.status(500).send({ sucesso: false, erro: error?.message || "Falha ao processar lote de entregas." });
   }
 }
 
@@ -462,14 +479,19 @@ async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyRep
   const userId = (request as any).userId;
   const { lat, lon } = (request.query as { lat?: string; lon?: string }) || {};
 
-  const { data: entregas, error } = await supabase
+  const db = getDB(request);
+
+  const { data: entregas, error } = await db
     .from("entregas")
     .select("*")
     .eq("entregador_id", userId)
     .or("status.neq.entregue,status.is.null")
     .order("ordem", { ascending: true });
 
-  if (error) return reply.status(500).send({ sucesso: false, erro: "Erro ao consultar o banco." });
+  if (error) {
+    console.error("❌ [Supabase Error - listarRotaAtual]:", error);
+    return reply.status(500).send({ sucesso: false, erro: error.message || "Erro ao consultar o banco." });
+  }
 
   const paradasFormatadas = formatarParadas((entregas as EntregaDB[]) || []);
 
@@ -481,7 +503,7 @@ async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyRep
           if (novasCoords.lat !== 0 && novasCoords.lon !== 0) {
             item.lat = novasCoords.lat;
             item.lon = novasCoords.lon;
-            await supabase
+            await db
               .from("entregas")
               .update({ lat: novasCoords.lat, lon: novasCoords.lon })
               .eq("id", item.id)
@@ -555,7 +577,9 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
       ? validacao.data
       : {};
 
-    const { data: entregas, error } = await supabase
+    const db = getDB(request);
+
+    const { data: entregas, error } = await db
       .from("entregas")
       .select("*")
       .eq("entregador_id", userId)
@@ -603,7 +627,7 @@ async function otimizarRotaHandler(request: FastifyRequest, reply: FastifyReply)
       if (entregaCorrespondente) {
         const ordemAtualizada = novaOrdem++;
         updates.push(
-          supabase
+          db
             .from("entregas")
             .update({ ordem: ordemAtualizada })
             .eq("id", entregaCorrespondente.id)
@@ -628,7 +652,9 @@ async function historicoGeralHandler(request: FastifyRequest, reply: FastifyRepl
   const userId = (request as any).userId;
   const { periodo } = (request.query as { periodo?: string }) || {};
 
-  let query = supabase
+  const db = getDB(request);
+
+  let query = db
     .from("entregas")
     .select("*")
     .eq("entregador_id", userId)
@@ -669,6 +695,8 @@ async function concluirTodasEntregasHandler(request: FastifyRequest, reply: Fast
     const { idsConcluidos, ids, itensConcluidos } = validacao.data;
     const listaIds = idsConcluidos || ids;
 
+    const db = getDB(request);
+
     if (itensConcluidos && Array.isArray(itensConcluidos) && itensConcluidos.length > 0) {
       const updates = itensConcluidos.map((item) => {
         const updatePayload: Record<string, any> = {
@@ -677,13 +705,13 @@ async function concluirTodasEntregasHandler(request: FastifyRequest, reply: Fast
         };
         if (item.motivoInsucesso) updatePayload.referencia = `Motivo: ${item.motivoInsucesso}`;
         if (item.recebidoPor) updatePayload.nome_destinatario = item.recebidoPor;
-        return supabase.from("entregas").update(updatePayload).eq("id", item.id).eq("entregador_id", userId).select();
+        return db.from("entregas").update(updatePayload).eq("id", item.id).eq("entregador_id", userId).select();
       });
       await Promise.all(updates);
       return reply.status(200).send({ sucesso: true, mensagem: "Entregas finalizadas com sucesso!" });
     }
 
-    let query = supabase.from("entregas").update({ status: "entregue", updated_at: new Date().toISOString() }).eq("entregador_id", userId);
+    let query = db.from("entregas").update({ status: "entregue", updated_at: new Date().toISOString() }).eq("entregador_id", userId);
 
     if (listaIds && Array.isArray(listaIds) && listaIds.length > 0) {
       query = query.in("id", listaIds);
@@ -738,7 +766,8 @@ export async function rotasRoutes(app: FastifyInstance) {
   app.delete("/api/v1/entregas/:id", async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const { id } = request.params;
     const userId = (request as any).userId;
-    const { error } = await supabase.from("entregas").delete().eq("id", id).eq("entregador_id", userId);
+    const db = getDB(request);
+    const { error } = await db.from("entregas").delete().eq("id", id).eq("entregador_id", userId);
 
     if (error) return reply.status(500).send({ sucesso: false, erro: "Erro ao excluir." });
     return reply.status(200).send({ sucesso: true });
@@ -753,7 +782,8 @@ export async function rotasRoutes(app: FastifyInstance) {
 
       if (!rua?.trim()) return reply.status(400).send({ sucesso: false, erro: "Endereço não pode estar vazio." });
 
-      const { error } = await supabase.from("entregas").update({ rua }).eq("id", id).eq("entregador_id", userId);
+      const db = getDB(request);
+      const { error } = await db.from("entregas").update({ rua }).eq("id", id).eq("entregador_id", userId);
       if (error) return reply.status(500).send({ sucesso: false, erro: "Erro ao atualizar." });
       return reply.status(200).send({ sucesso: true });
     },
@@ -768,10 +798,11 @@ export async function rotasRoutes(app: FastifyInstance) {
       }
       const { paradas } = validacao.data;
       const userId = (request as any).userId;
+      const db = getDB(request);
 
       try {
         const updates = paradas.map((item) =>
-          supabase.from("entregas").update({ ordem: item.ordem }).eq("id", item.id).eq("entregador_id", userId).select(),
+          db.from("entregas").update({ ordem: item.ordem }).eq("id", item.id).eq("entregador_id", userId).select(),
         );
         await Promise.all(updates);
         return reply.status(200).send({ sucesso: true });
@@ -804,12 +835,13 @@ export async function rotasRoutes(app: FastifyInstance) {
       assinaturaDigital,
     } = validacao.data;
     const userId = (request as any).userId;
+    const db = getDB(request);
 
     const motivoReal = motivoFalha || motivoInsucesso;
     const observacaoReal = observacao;
 
     if (moverParaFinal) {
-      const maiorOrdem = await obterProximaOrdem(userId);
+      const maiorOrdem = await obterProximaOrdem(userId, db);
 
       const notaRef = [
         motivoReal ? `Motivo insucesso: ${motivoReal}` : "",
@@ -825,7 +857,7 @@ export async function rotasRoutes(app: FastifyInstance) {
       };
       if (notaRef) updateReord.referencia = notaRef;
 
-      const { error: errReord } = await supabase
+      const { error: errReord } = await db
         .from("entregas")
         .update(updateReord)
         .eq("id", id)
@@ -853,7 +885,7 @@ export async function rotasRoutes(app: FastifyInstance) {
     if (fotoComprovante) updateData.foto_comprovante = fotoComprovante;
     if (assinaturaDigital) updateData.assinatura_digital = assinaturaDigital;
 
-    let { error } = await supabase.from("entregas").update(updateData).eq("id", id).eq("entregador_id", userId);
+    let { error } = await db.from("entregas").update(updateData).eq("id", id).eq("entregador_id", userId);
 
     if (error && (fotoComprovante || assinaturaDigital || documentoRecebedor)) {
       const dadosComprovante = {
@@ -869,7 +901,7 @@ export async function rotasRoutes(app: FastifyInstance) {
         referencia: `Comprovante: ${JSON.stringify(dadosComprovante)}`,
       };
       if (recebidoPor) fallbackData.nome_destinatario = recebidoPor;
-      const resFallback = await supabase.from("entregas").update(fallbackData).eq("id", id).eq("entregador_id", userId);
+      const resFallback = await db.from("entregas").update(fallbackData).eq("id", id).eq("entregador_id", userId);
       error = resFallback.error;
     }
 
@@ -879,6 +911,7 @@ export async function rotasRoutes(app: FastifyInstance) {
 
 async function relatorioFechamentoHandler(request: FastifyRequest, reply: FastifyReply) {
   const userId = (request as any).userId;
+  const db = getDB(request);
   const validacao = relatorioFechamentoSchema.safeParse(request.query || {});
   const { data: dataParam, taxaEntrega, valorKm, diaria } = validacao.success
     ? validacao.data
@@ -897,7 +930,7 @@ async function relatorioFechamentoHandler(request: FastifyRequest, reply: Fastif
     fimIso = `${dataParam}T23:59:59.999Z`;
   }
 
-  const { data: entregasDB, error } = await supabase
+  const { data: entregasDB, error } = await db
     .from("entregas")
     .select("*")
     .eq("entregador_id", userId)

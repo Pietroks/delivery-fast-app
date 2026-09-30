@@ -11,49 +11,96 @@ import {
 vi.mock("axios");
 const mockedAxios = vi.mocked(axios, true);
 
-const mockSingle = vi.fn();
-const mockSelect = vi.fn();
-const mockInsert = vi.fn();
-const mockUpdate = vi.fn();
-const mockDelete = vi.fn();
-const mockOr = vi.fn();
-const mockEq = vi.fn();
-const mockGte = vi.fn();
-const mockLte = vi.fn();
-const mockOrder = vi.fn();
-const mockIn = vi.fn();
+const {
+  mockQueryBuilder,
+  mockSelect,
+  mockInsert,
+  mockUpdate,
+  mockDelete,
+  mockOr,
+  mockEq,
+  mockGte,
+  mockLte,
+  mockOrder,
+  mockSingle,
+  mockIn,
+} = vi.hoisted(() => {
+  const mockSingle = vi.fn();
+  const mockSelect = vi.fn();
+  const mockInsert = vi.fn();
+  const mockUpdate = vi.fn();
+  const mockDelete = vi.fn();
+  const mockOr = vi.fn();
+  const mockEq = vi.fn();
+  const mockGte = vi.fn();
+  const mockLte = vi.fn();
+  const mockOrder = vi.fn();
+  const mockIn = vi.fn();
 
-const mockQueryBuilder: any = {
-  select: mockSelect,
-  insert: mockInsert,
-  update: mockUpdate,
-  delete: mockDelete,
-  or: mockOr,
-  eq: mockEq,
-  gte: mockGte,
-  lte: mockLte,
-  order: mockOrder,
-  single: mockSingle,
-  in: mockIn,
-  then: (resolve: any) => resolve({ data: [], error: null }),
-};
+  const mockQueryBuilder: any = {
+    select: mockSelect,
+    insert: mockInsert,
+    update: mockUpdate,
+    delete: mockDelete,
+    or: mockOr,
+    eq: mockEq,
+    gte: mockGte,
+    lte: mockLte,
+    order: mockOrder,
+    single: mockSingle,
+    in: mockIn,
+    then: (resolve: any) => resolve({ data: [], error: null }),
+  };
 
-mockSelect.mockReturnValue(mockQueryBuilder);
-mockInsert.mockReturnValue(mockQueryBuilder);
-mockUpdate.mockReturnValue(mockQueryBuilder);
-mockDelete.mockReturnValue(mockQueryBuilder);
-mockOr.mockReturnValue(mockQueryBuilder);
-mockEq.mockReturnValue(mockQueryBuilder);
-mockGte.mockReturnValue(mockQueryBuilder);
-mockLte.mockReturnValue(mockQueryBuilder);
-mockOrder.mockReturnValue(mockQueryBuilder);
-mockIn.mockReturnValue(mockQueryBuilder);
+  mockSelect.mockReturnValue(mockQueryBuilder);
+  mockInsert.mockReturnValue(mockQueryBuilder);
+  mockUpdate.mockReturnValue(mockQueryBuilder);
+  mockDelete.mockReturnValue(mockQueryBuilder);
+  mockOr.mockReturnValue(mockQueryBuilder);
+  mockEq.mockReturnValue(mockQueryBuilder);
+  mockGte.mockReturnValue(mockQueryBuilder);
+  mockLte.mockReturnValue(mockQueryBuilder);
+  mockOrder.mockReturnValue(mockQueryBuilder);
+  mockIn.mockReturnValue(mockQueryBuilder);
 
-vi.mock("../../services/supabase", () => ({
-  supabase: {
-    from: vi.fn(() => mockQueryBuilder),
-  },
-}));
+  return {
+    mockQueryBuilder,
+    mockSelect,
+    mockInsert,
+    mockUpdate,
+    mockDelete,
+    mockOr,
+    mockEq,
+    mockGte,
+    mockLte,
+    mockOrder,
+    mockSingle,
+    mockIn,
+  };
+});
+
+vi.mock("../../services/supabase", () => {
+  const mockClient = {
+    from: vi.fn(() => ({
+      select: mockSelect,
+      insert: mockInsert,
+      update: mockUpdate,
+      delete: mockDelete,
+      or: mockOr,
+      eq: mockEq,
+      gte: mockGte,
+      lte: mockLte,
+      order: mockOrder,
+      single: mockSingle,
+      in: mockIn,
+      then: (resolve: any) => resolve({ data: [], error: null }),
+    })),
+  };
+  return {
+    supabase: mockClient,
+    obterSupabaseClient: vi.fn(() => mockClient),
+  };
+});
 
 describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
   let app: ReturnType<typeof Fastify>;
@@ -61,6 +108,7 @@ describe("Backend API: rotasRoutes (Suíte de Testes Completa)", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    resetarContadorGoogleParaTestes();
     process.env.GOOGLE_MAPS_API_KEY = "test-api-key";
 
     mockSelect.mockReturnValue(mockQueryBuilder);

@@ -4,12 +4,14 @@ import { supabase } from "../services/supabase";
 declare module "fastify" {
   interface FastifyRequest {
     userId?: string;
+    token?: string;
   }
 }
 
 export async function verificarToken(request: FastifyRequest, reply: FastifyReply) {
   if (process.env.NODE_ENV === "test") {
     request.userId = "entregador-teste-123";
+    request.token = "test-token";
     return;
   }
 
@@ -30,4 +32,5 @@ export async function verificarToken(request: FastifyRequest, reply: FastifyRepl
   }
 
   request.userId = data.user.id;
+  request.token = token;
 }
