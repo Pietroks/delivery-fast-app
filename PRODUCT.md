@@ -50,11 +50,11 @@ Diferente de sistemas de despacho logístico corporativos pesados (como Routeasy
   - Geocodificação híbrida e tolerante a abreviações brasileiras ("R.", "Av.", "Mal.", "Pres."), com priorização de coordenadas precisas enviadas pelo frontend.
   - Otimização do Caixeiro Viajante (TSP) com fallback resiliente local Nearest-Neighbor + 2-Opt.
   - Particionamento e formatação de lotes para contornar o limite de 10 waypoints do Google Maps nativo.
-  - Comprovante de entrega com foto, tela de desenho touch (`PanResponder`), bloqueio de scroll externo e máscara de CPF.
+  - Comprovante de entrega com foto, tela de desenho vetorial touch (`react-native-svg` + `PanResponder`), bloqueio de scroll externo e máscara de CPF.
   - Histórico auditável de comprovantes salvos.
   - Fechamento financeiro diário com taxa por entrega, km rodados, diária fixa e chave PIX persistidas em `AsyncStorage`.
 * **Restrições Técnicas:**
-  - Aplicação 100% adaptativa desenvolvida em React Native 0.83 sob Expo SDK 57 (suporte equânime a Android e iOS).
+  - Aplicação 100% adaptativa desenvolvida em React Native 0.86.3 sob Expo SDK 57.0.26 (suporte equânime a Android e iOS).
   - Backend modular em Fastify 5 + TypeScript + Vitest.
   - Arquitetura de qualidade com 122 testes automatizados (100% aprovados).
   - Roteamento e geocodificação via serviços públicos (OSRM, BrasilAPI, Nominatim) — custo zero. Auto-sugestão de endereços via Google Places API (New) dentro da cota gratuita (circuit breaker em 298 req/dia garante R$ 0 de custo).

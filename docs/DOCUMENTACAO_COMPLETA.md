@@ -1,6 +1,6 @@
 # 🚚 Delivery Fast - Manual Técnico Completo e Documentação de Arquitetura
 
-> **Versão do Sistema:** 1.0.0  
+> **Versão do Sistema:** 1.1.0 (Atualizado em 30/09/2026)  
 > **Status da Qualidade:** 122/122 Testes Automatizados Aprovados (100%) | 0 Erros TypeScript  
 > **Público-Alvo:** Desenvolvedores, Engenheiros de Software, Arquitetos de Soluções, Lojistas e Operadores Logísticos.
 
@@ -43,6 +43,13 @@
    - [9.1. Evolução da Pontuação (24/40 → 40/40)](#91-evolução-da-pontuação-2440--4040)
    - [9.2. Matriz dos 10 Princípios Heurísticos de Nielsen](#92-matriz-dos-10-princípios-heurísticos-de-nielsen)
    - [9.3. Validação com Personas Operacionais](#93-validação-com-personas-operacionais)
+10. [🛠️ Registro de Atualizações Técnicas & Estabilização (v1.1.0)](#10-️-registro-de-atualizações-técnicas--estabilização-v110)
+    - [10.1. Resolução Definitiva de RLS no Supabase (PostgreSQL 42501)](#101-resolução-definitiva-de-rls-no-supabase-postgresql-42501)
+    - [10.2. Assinatura Digital Vetorial Suave com `react-native-svg`](#102-assinatura-digital-vetorial-suave-com-react-native-svg)
+    - [10.3. Sincronização em Tempo Real da Rota Otimizada no GPS (Fix de Closure)](#103-sincronização-em-tempo-real-da-rota-otimizada-no-gps-fix-de-closure)
+    - [10.4. Ergonomia dos Cards de Próximas Paradas & Prevenção de Truncamento](#104-ergonomia-dos-cards-de-próximas-paradas--prevenção-de-truncamento)
+    - [10.5. Telemetria Solar e Métricas Operacionais (Combustível & Minutos)](#105-telemetria-solar-e-métricas-operacionais-combustível--minutos)
+    - [10.6. Atualização Tecnológica do Expo Go (SDK 57.0.26 / React Native 0.86.3)](#106-atualização-tecnológica-do-expo-go-sdk-57026--react-native-0863)
 
 
 ---
@@ -1109,6 +1116,57 @@ Trend de Avaliação Impeccable Critique:
 - **Alex (Usuário Avançado de Alto Volume):** Cola listas de 30 pedidos direto do grupo da pizzaria no WhatsApp, particiona em 3 lotes com 1 clique em "Otimizar Rota", navega no Google Maps e fecha o turno enviando a prestação de contas com chave PIX em menos de 1 minuto.
 - **Jordan (Iniciante no Primeiro Turno):** A tela vazia apresenta o Hero Onboarding Card ("Pronto para rodar?") que ensina o fluxo sem jargões e o ícone de ajuda explica por que as paradas são divididas em grupos de 10.
 - **Casey (Usuário em Movimento / Multitarefa):** Botões críticos posicionados na zona ergonômica do polegar e alternância rápida entre ligação telefônica e WhatsApp sem perder o estado da lista.
+
+---
+
+## 10. 🛠️ Registro de Atualizações Técnicas & Estabilização (v1.1.0)
+
+Esta seção documenta as intervenções arquiteturais e correções pontuais implementadas para estabilizar a aplicação em produção, otimizar a experiência de uso em campo e eliminar erros operacionais.
+
+### 10.1. Resolução Definitiva de RLS no Supabase (PostgreSQL 42501)
+* **Diagnóstico**: Ao cadastrar uma entrega (manual, botão `+ Nova`, importação em lote ou WhatsApp), o banco de dados retornava `code: "42501"` (*new row violates row-level security policy for table "entregas"*). O backend Fastify executava as mutações utilizando a chave pública estática (`anon key`) sem repassar o token JWT do usuário conectado. Para o PostgreSQL, a variável de sessão `auth.uid()` resultava em `NULL`, falhando na checagem `WITH CHECK (auth.uid() = entregador_id)`.
+* **Solução Arquitetural**:
+  - Em [`backend/src/services/supabase.ts`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/backend/src/services/supabase.ts#L33-L52), foi introduzida a fábrica `obterSupabaseClient(token?: string)`, que gera instâncias sob demanda injetando o cabeçalho `global.headers.Authorization = Bearer <token>`.
+  - No middleware [`verificarToken`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/backend/src/middlewares/auth.middleware.ts#L34-L35), o token extraído do cabeçalho é propagado no objeto `request.token`.
+  - Todos os manipuladores em [`rotas.routes.ts`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/backend/src/routes/rotas.routes.ts) passaram a invocar `const db = getDB(request)`, permitindo que o PostgREST autentique a transação e repasse o UID correto às políticas de RLS.
+
+### 10.2. Assinatura Digital Vetorial Suave com `react-native-svg`
+* **Diagnóstico**: No modal de comprovante de entrega ([`ComprovanteEntregaModal.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/components/ComprovanteEntregaModal.tsx)), ao desenhar a assinatura na tela com o dedo, o traço sumia ou falhava, exigindo múltiplos toques repetidos. Isso ocorria porque o `ScrollView` pai roubava os gestos táteis (`onPanResponderTerminationRequest: true` padrão do React Native) e os pontos eram renderizados como dezenas de `View`s absolutas desconectadas que interceptavam o toque do usuário.
+* **Solução Arquitetural**:
+  - Instalação e integração do `react-native-svg`.
+  - Configuração rigorosa do `PanResponder`:
+    ```ts
+    onStartShouldSetPanResponderCapture: () => true,
+    onMoveShouldSetPanResponderCapture: () => true,
+    onPanResponderTerminationRequest: () => false,
+    ```
+  - Aplicação de `pointerEvents="none"` no contêiner SVG interno, garantindo que as coordenadas `locationX` e `locationY` sejam sempre calculadas em relação à área útil do canvas.
+  - Renderização contínua com tags `<Svg>` e `<Path d={curva} stroke="#22c55e" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />`, proporcionando um traço vetorial de alta definição, fluido e sem descontinuidades.
+
+### 10.3. Sincronização em Tempo Real da Rota Otimizada no GPS (Fix de Closure)
+* **Diagnóstico**: Ao clicar em "Otimizar Rota", o modal de sucesso perguntava "Deseja iniciar a rota e traçar o trajeto no Google Maps agora?". Ao confirmar ("Iniciar no GPS"), o aplicativo abria o Google Maps com a **ordem antiga** (pré-otimização), forçando o motorista a fechar e acionar o botão principal de navegação.
+* **Causa**: *Stale closure* assíncrona do React. O callback `handleIniciarRota` lia a lista `rotas` presa no escopo do render anterior, antes que o novo estado retornado pelo servidor concluísse o ciclo de re-renderização.
+* **Solução**:
+  - `carregarEntregas()` em [`HomeScreen.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/screens/HomeScreen.tsx#L93-L103) foi ajustado para retornar a lista de paradas atualizada recebida do servidor.
+  - `handleIniciarRota` passou a aceitar um parâmetro opcional `paradasParaNavegar?: Parada[]`. Ao confirmar no modal de otimização, a nova lista fresca é passada diretamente, garantindo que o Google Maps seja aberto instantaneamente na sequência exata e otimizada.
+
+### 10.4. Ergonomia dos Cards de Próximas Paradas & Prevenção de Truncamento
+* **Diagnóstico**: Nos cards secundários de paradas ([`GerenciadorRotas.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/components/GerenciadorRotas.tsx#L501-L545)), os botões de ação disputavam a largura útil da tela móvel (360-390px), resultando no truncamento inestético do botão de conclusão para `"conclui..."`. Além disso, botões de ligação e WhatsApp eram renderizados mesmo para entregas sem número de telefone associado.
+* **Solução**:
+  - Condicionalização estrita: os botões "Ligar" e "WhatsApp" só são exibidos quando `item.telefone` estiver preenchido.
+  - O rótulo do botão de confirmação nos cards secundários foi simplificado para **"Concluir"**, mantendo área de toque $\ge 48\text{dp}$ com alto contraste sem qualquer risco de overflow ou elipse de texto.
+
+### 10.5. Telemetria Solar e Métricas Operacionais (Combustível & Minutos)
+* **Diagnóstico**: No card de telemetria ([`ResumoRotaCard.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/components/ResumoRotaCard.tsx#L28-L95)), o tempo estimado exibia `"0h 24m"`, gerando confusão de leitura rápida em guidão ("0.24 metros"). Além disso, a quarta métrica calculava `distanciaKm * 0.45` e era rotulada como "economia". Ao otimizar a rota e diminuir a quilometragem (ex: 16 km -> 14.7 km), o valor diminuía de R$ 7,20 para R$ 6,62, dando a falsa impressão de que a otimização havia reduzido as economias do motorista.
+* **Solução**:
+  - **Formatação de Tempo**: Quando inferior a 60 minutos, o tempo é formatado como `"24 min"`, `"45 min"`, eliminando o prefixo ambíguo de horas nulas.
+  - **Semântica da Métrica Financeira**: O rótulo foi corrigido para **"combustível"** (custo estimado do trajeto a R$ 0,45/km). Dessa forma, a redução de R$ 7,20 para R$ 6,62 reflete coerentemente a economia direta de combustível obtida pela diminuição dos quilômetros rodados.
+  - **Resiliência de Malha Viária (OSRM)**: O timeout de consulta à API de rotas viárias em [`rotas.routes.ts`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/backend/src/routes/rotas.routes.ts#L532-L544) foi ampliado de 2s para **4s**, reduzindo drastically a ocorrência de fallbacks retos (Haversine) em rotas densas com muitos waypoints.
+
+### 10.6. Atualização Tecnológica do Expo Go (SDK 57.0.26 / React Native 0.86.3)
+* **Compatibilidade**: Atualização do ecossistema Expo para a versão `~57.0.26` e React Native `0.86.3`.
+* **Ambiente de Testes**: Ajuste do `@react-native/jest-preset` e `react-test-renderer` para `19.2.3`, mantendo a suíte de 122 testes rigorosamente íntegra e verde (89 no frontend e 33 no backend).
+* **Guia de Conectividade Expo Go**: Documentada a resolução de problemas de download de atualização remota causados por bloqueio de DNS privado em dispositivos móveis e liberação de portas de firewall.
 
 ---
 

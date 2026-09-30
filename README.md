@@ -2,24 +2,24 @@
 
 [![Testes Automatizados](https://img.shields.io/badge/Testes-122%20Aprovados%20(100%25)-22c55e?style=for-the-badge&logo=vitest&logoColor=white)](https://github.com/Pietroks/delivery-fast-app)
 [![Impeccable Critique](https://img.shields.io/badge/Impeccable%20Critique-40%2F40%20(Excelente)-22c55e?style=for-the-badge&logo=shield&logoColor=white)](https://github.com/Pietroks/delivery-fast-app)
-[![Expo SDK 57](https://img.shields.io/badge/Expo-SDK%2057-000000?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev)
-[![React Native 0.83](https://img.shields.io/badge/React%20Native-0.83-61dafb?style=for-the-badge&logo=react&logoColor=black)](https://reactnative.dev)
+[![Expo SDK 57](https://img.shields.io/badge/Expo-SDK%2057.0.26-000000?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev)
+[![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86.3-61dafb?style=for-the-badge&logo=react&logoColor=black)](https://reactnative.dev)
 [![Fastify 5](https://img.shields.io/badge/Fastify-5.11-000000?style=for-the-badge&logo=fastify&logoColor=white)](https://fastify.io)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ecf8e?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
 
-Aplicativo mobile completo desenvolvido para entregadores e pequenos comércios otimizarem rotas de entrega dinamicamente a partir do **GPS em tempo real**. Combina o algoritmo do Caixeiro Viajante do **OSRM** com a navegação porta a porta do **Google Maps**, auto-sugestão preditiva de alta precisão (**Google Places API New**), além de comprovação digital de entregas (**foto e assinatura na tela**) e **relatório financeiro de fechamento de turno** com envio direto no WhatsApp do lojista.
+Aplicativo mobile completo desenvolvido para entregadores e pequenos comércios otimizarem rotas de entrega dinamicamente a partir do **GPS em tempo real**. Combina o algoritmo do Caixeiro Viajante do **OSRM** com a navegação porta a porta do **Google Maps**, auto-sugestão preditiva de alta precisão (**Google Places API New**), além de comprovação digital de entregas (**foto e assinatura vetorial na tela**) e **relatório financeiro de fechamento de turno** com envio direto no WhatsApp do lojista.
 
 ---
 
 ## 🌟 Principais Funcionalidades
 
-- **[x] Autenticação e Multi-Tenancy**: Login e cadastro com isolamento rigoroso de entregadores via Supabase Auth e Row Level Security (RLS).
+- **[x] Autenticação e Multi-Tenancy**: Login e cadastro com isolamento rigoroso de entregadores via Supabase Auth e Row Level Security (RLS) autenticado.
 - **[x] Auto-Sugestão Inteligente (Google Places New)**: Busca de endereços com preenchimento preditivo milimétrico e viés de proximidade GPS (*location bias*), com trava de segurança de 298 requisições/dia e fallback 100% transparente para BrasilAPI/Nominatim.
 - **[x] Importação em Massa ("Colar Lista")**: Parser inteligente com sanitização de pontuações finais (`pippi.` -> `pippi`) que aceita listas coladas do WhatsApp ou e-mail.
 - **[x] Geocodificação Híbrida & Auto-Cura**: Resolução prioritária via Google Places Text Search, com cadeia de fallback resiliente (BrasilAPI v2 por CEP e Nominatim com *bounding box* viário de ~45 km de raio ao redor do GPS do entregador).
 - **[x] Otimização Inteligente ($P_0$ via GPS ou Hub Fixo)**: Otimiza o trajeto viário pelo algoritmo do Caixeiro Viajante do OSRM partindo da localização física real do entregador ou de um ponto de partida fixo, com suporte a rota circular (retorno à base).
-- **[x] Navegação Multi-Lotes para Google Maps**: Contorna a limitação de paradas do Google Maps particionando automaticamente rotas longas em lotes sequenciais de até 10 paradas com deep links nativos Android.
-- **[x] Comprovante de Entrega Digital (POD)**: Registro fotográfico da encomenda entregue via câmera nativa (`expo-image-picker`) e assinatura digital com toque suave na tela (`PanResponder`), com nome e documento do recebedor.
+- **[x] Navegação Multi-Lotes para Google Maps**: Contorna a limitação de paradas do Google Maps particionando automaticamente rotas longas em lotes sequenciais de até 10 paradas com deep links nativos e sincronização em tempo real da ordem otimizada.
+- **[x] Comprovante de Entrega Digital (POD)**: Registro fotográfico da encomenda entregue via câmera nativa (`expo-image-picker`) e assinatura digital vetorial fluida com `react-native-svg` e `PanResponder` blindado, associada a nome e documento do recebedor.
 - **[x] Visualizador de Comprovantes no Histórico**: Modal para consultar a qualquer momento as fotos em alta resolução e assinaturas vetoriais das entregas concluídas.
 - **[x] Gestão de Insucessos Operacionais**: Modal de registro de falhas de entrega com 4 motivos canônicos e reordenação dinâmica para o fim da fila (`moverParaFinal`).
 - **[x] Relatório de Fechamento de Turno & Envio no WhatsApp**:
@@ -37,13 +37,14 @@ Aplicativo mobile completo desenvolvido para entregadores e pequenos comércios 
 ## 🛠️ Tecnologias Utilizadas
 
 ### **Mobile (Frontend)**
-- **React Native (`0.83.0`)** com **React 19 (`19.1.0`)**
-- **Expo SDK (`~57.0.0`)**
+- **React Native (`0.86.3`)** com **React 19 (`19.2.3`)**
+- **Expo SDK (`~57.0.26`)**
 - **TypeScript (`~5.9.2`)**
 - **NativeWind (`^4.2.6`) / TailwindCSS (`^3.4.19`)** (Dark mode nativo)
 - **React Navigation 7** (Bottom Tabs e Native Stack)
-- **Expo Location (`~19.0.0`)** (Leitura rápida de GPS e geocodificação reversa)
-- **Expo Image Picker (`~17.0.0`)** (Captura de fotos de comprovante)
+- **react-native-svg (`15.15.4`)** (Assinatura digital vetorial contínua)
+- **Expo Location (`~57.0.20`)** (Leitura rápida de GPS e geocodificação reversa)
+- **Expo Image Picker (`~57.0.20`)** (Captura de fotos de comprovante)
 - **AsyncStorage (`2.2.0`)** (Persistência local de cache e taxas)
 - **Jest (`^29.7.0`) & React Native Testing Library** (89 testes automatizados em 14 suítes)
 
