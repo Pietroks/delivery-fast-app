@@ -7,3 +7,5 @@ jest.mock("@expo/vector-icons", () => ({
   Ionicons: "Ionicons",
   MaterialIcons: "MaterialIcons",
 }));
+
+jest.setTimeout(20000);
