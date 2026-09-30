@@ -25,10 +25,10 @@ export const criarEntregaSchema = z.object({
   referencia: z.string().optional(),
   nomeDestinatario: z.string().optional(),
   telefone: z.string().optional(),
-  lat: z.number().optional(),
-  lon: z.number().optional(),
-  latUsuario: z.number().optional(),
-  lonUsuario: z.number().optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lon: z.number().min(-180).max(180).optional(),
+  latUsuario: z.number().min(-90).max(90).optional(),
+  lonUsuario: z.number().min(-180).max(180).optional(),
   adicionarARotaAtual: z.boolean().default(true),
 });
 
@@ -48,8 +48,8 @@ export const itemLoteSchema = z.object({
 export const importarLoteSchema = z.object({
   entregas: z.array(itemLoteSchema).min(1, "Envie pelo menos 1 entrega no lote."),
   cidadePadrao: z.string().optional(),
-  latUsuario: z.number().optional(),
-  lonUsuario: z.number().optional(),
+  latUsuario: z.number().min(-90).max(90).optional(),
+  lonUsuario: z.number().min(-180).max(180).optional(),
 });
 
 export type ImportarLoteInput = z.infer<typeof importarLoteSchema>;
@@ -90,6 +90,7 @@ export type RelatorioFechamentoInput = z.infer<typeof relatorioFechamentoSchema>
 
 export const concluirEntregasSchema = z.object({
   idsConcluidos: z.array(z.string()).optional(),
+  ids: z.array(z.string()).optional(),
   itensConcluidos: z.array(z.object({
     id: z.string(),
     status: z.string().optional(),

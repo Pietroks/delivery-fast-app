@@ -666,7 +666,8 @@ async function concluirTodasEntregasHandler(request: FastifyRequest, reply: Fast
     if (!validacao.success) {
       return reply.status(400).send({ sucesso: false, erro: "Dados inválidos." });
     }
-    const { idsConcluidos, itensConcluidos } = validacao.data;
+    const { idsConcluidos, ids, itensConcluidos } = validacao.data;
+    const listaIds = idsConcluidos || ids;
 
     if (itensConcluidos && Array.isArray(itensConcluidos) && itensConcluidos.length > 0) {
       const updates = itensConcluidos.map((item) => {
@@ -684,8 +685,8 @@ async function concluirTodasEntregasHandler(request: FastifyRequest, reply: Fast
 
     let query = supabase.from("entregas").update({ status: "entregue", updated_at: new Date().toISOString() }).eq("entregador_id", userId);
 
-    if (idsConcluidos && Array.isArray(idsConcluidos) && idsConcluidos.length > 0) {
-      query = query.in("id", idsConcluidos);
+    if (listaIds && Array.isArray(listaIds) && listaIds.length > 0) {
+      query = query.in("id", listaIds);
     } else {
       query = query.eq("status", "pendente");
     }
@@ -716,11 +717,9 @@ export async function rotasRoutes(app: FastifyInstance) {
     if (!q || q.trim().length < 2) {
       return reply.status(200).send({ sugestoes: [] });
     }
-    const sugestoes = await buscarSugestoesGoogle(
-      q,
-      lat ? Number(lat) : undefined,
-      lon ? Number(lon) : undefined,
-    );
+    const latNum = lat && !isNaN(Number(lat)) ? Number(lat) : undefined;
+    const lonNum = lon && !isNaN(Number(lon)) ? Number(lon) : undefined;
+    const sugestoes = await buscarSugestoesGoogle(q, latNum, lonNum);
     return reply.status(200).send({ sugestoes });
   });
 
@@ -1005,4 +1004,5 @@ async function relatorioFechamentoHandler(request: FastifyRequest, reply: Fastif
   app.get("/api/v1/entregas/historico-hoje", historicoGeralHandler);
   app.get("/api/v1/relatorios/fechamento", relatorioFechamentoHandler);
   app.put("/api/v1/rotas/concluir-todas", concluirTodasEntregasHandler);
+  app.put("/api/v1/rotas/finalizar", concluirTodasEntregasHandler);
 }

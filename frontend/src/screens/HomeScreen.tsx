@@ -215,7 +215,7 @@ export default function HomeScreen() {
     async (idsSelecionados: string[]) => {
       setFinalizando(true);
       try {
-        await api.put("/rotas/finalizar", { ids: idsSelecionados });
+        await api.put("/rotas/concluir-todas", { idsConcluidos: idsSelecionados, ids: idsSelecionados });
         await carregarEntregas();
         setModalFinalizarAberto(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

@@ -87,7 +87,14 @@ export async function buscarSugestoesGoogle(
       includedRegionCodes: ["br"],
     };
 
-    if (latUsuario && lonUsuario && latUsuario !== 0 && lonUsuario !== 0) {
+    if (
+      latUsuario !== undefined &&
+      lonUsuario !== undefined &&
+      !isNaN(latUsuario) &&
+      !isNaN(lonUsuario) &&
+      latUsuario !== 0 &&
+      lonUsuario !== 0
+    ) {
       payload.locationBias = {
         circle: {
           center: { latitude: latUsuario, longitude: lonUsuario },
@@ -205,7 +212,14 @@ export async function geocodificarTextoGoogle(
       textQuery: texto.trim(),
     };
 
-    if (latUsuario && lonUsuario && latUsuario !== 0 && lonUsuario !== 0) {
+    if (
+      latUsuario !== undefined &&
+      lonUsuario !== undefined &&
+      !isNaN(latUsuario) &&
+      !isNaN(lonUsuario) &&
+      latUsuario !== 0 &&
+      lonUsuario !== 0
+    ) {
       payload.locationBias = {
         circle: {
           center: { latitude: latUsuario, longitude: lonUsuario },
