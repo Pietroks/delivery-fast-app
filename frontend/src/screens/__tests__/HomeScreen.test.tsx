@@ -89,7 +89,7 @@ describe("Tela: HomeScreen", () => {
       expect(getByText("Rua A, 100")).toBeTruthy();
       expect(getByText("Rua B, 200")).toBeTruthy();
       expect(getByText(/3\.5/)).toBeTruthy();
-      expect(getByText("0h 45m")).toBeTruthy();
+      expect(getByText("45 min")).toBeTruthy();
     });
   });
 

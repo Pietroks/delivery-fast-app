@@ -510,37 +510,41 @@ export const GerenciadorRotas: React.FC<GerenciadorRotasProps> = ({
                   <Text className="text-sky-400 text-xs font-bold">GPS</Text>
                 </TouchableOpacity>
 
-                {/* Botão Ligar (Discador Telefônico Nativo) */}
-                <TouchableOpacity
-                  onPress={() => ligarParaCliente(item.telefone)}
-                  className="flex-row items-center justify-center bg-[#1e2e48] border border-[#22334f] px-3 min-h-[48px] rounded-xl active:bg-[#0b1320]"
-                  accessibilityRole="button"
-                  accessibilityLabel="Ligar para o cliente"
-                >
-                  <Ionicons name="call-outline" size={16} color="#60a5fa" style={{ marginRight: 4 }} />
-                  <Text className="text-blue-400 text-xs font-bold">Ligar</Text>
-                </TouchableOpacity>
+                {/* Botão Ligar (apenas se houver telefone) */}
+                {item.telefone ? (
+                  <TouchableOpacity
+                    onPress={() => ligarParaCliente(item.telefone)}
+                    className="flex-row items-center justify-center bg-[#1e2e48] border border-[#22334f] px-2.5 min-h-[48px] rounded-xl active:bg-[#0b1320]"
+                    accessibilityRole="button"
+                    accessibilityLabel="Ligar para o cliente"
+                  >
+                    <Ionicons name="call-outline" size={16} color="#60a5fa" style={{ marginRight: 4 }} />
+                    <Text className="text-blue-400 text-xs font-bold">Ligar</Text>
+                  </TouchableOpacity>
+                ) : null}
 
-                {/* Botão WhatsApp */}
-                <TouchableOpacity
-                  onPress={() => abrirWhatsapp(item.telefone, item.nomeDestinatario)}
-                  className="flex-row items-center justify-center bg-[#1e2e48] border border-emerald-500/30 px-3 min-h-[48px] rounded-xl active:bg-[#0b1320]"
-                  accessibilityRole="button"
-                  accessibilityLabel="Enviar mensagem no WhatsApp"
-                >
-                  <Ionicons name="logo-whatsapp" size={16} color="#22c55e" style={{ marginRight: 4 }} />
-                  <Text className="text-emerald-400 text-xs font-bold">WhatsApp</Text>
-                </TouchableOpacity>
+                {/* Botão WhatsApp (apenas se houver telefone) */}
+                {item.telefone ? (
+                  <TouchableOpacity
+                    onPress={() => abrirWhatsapp(item.telefone, item.nomeDestinatario)}
+                    className="flex-row items-center justify-center bg-[#1e2e48] border border-emerald-500/30 px-2.5 min-h-[48px] rounded-xl active:bg-[#0b1320]"
+                    accessibilityRole="button"
+                    accessibilityLabel="Enviar mensagem no WhatsApp"
+                  >
+                    <Ionicons name="logo-whatsapp" size={16} color="#22c55e" style={{ marginRight: 4 }} />
+                    <Text className="text-emerald-400 text-xs font-bold">Whats</Text>
+                  </TouchableOpacity>
+                ) : null}
 
                 {/* Botão Primário: Concluir Entrega / Registrar Comprovante */}
                 <TouchableOpacity
                   onPress={() => handleAbrirComprovante(item)}
-                  className="flex-1 flex-row items-center justify-center bg-[#22c55e] min-h-[48px] px-2.5 rounded-xl active:bg-[#16a34a]"
+                  className="flex-1 flex-row items-center justify-center bg-[#22c55e] min-h-[48px] px-3 rounded-xl active:bg-[#16a34a]"
                   accessibilityRole="button"
                   accessibilityLabel={`Concluir entrega para ${item.rua}`}
                 >
-                  <Ionicons name="checkmark-circle-outline" size={17} color="#000000" style={{ marginRight: 4 }} />
-                  <Text className="text-black text-xs font-black" numberOfLines={1}>Concluir Entrega</Text>
+                  <Ionicons name="checkmark-circle-outline" size={17} color="#000000" style={{ marginRight: 5 }} />
+                  <Text className="text-black text-xs font-black" numberOfLines={1}>Concluir</Text>
                 </TouchableOpacity>
               </View>
             </View>

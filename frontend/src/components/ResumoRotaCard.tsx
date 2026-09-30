@@ -26,10 +26,11 @@ export const ResumoRotaCard: React.FC<ResumoRotaCardProps> = React.memo(
     const distanciaTotal = useMemo(() => resumo?.distanciaKm ?? 0, [resumo?.distanciaKm]);
 
     const tempoEstimado = useMemo(() => {
-      if (!resumo?.tempoEstimadoMin) return "0h 0m";
+      if (!resumo?.tempoEstimadoMin) return "0 min";
       const h = Math.floor(resumo.tempoEstimadoMin / 60);
       const m = resumo.tempoEstimadoMin % 60;
-      return `${h}h ${m}m`;
+      if (h === 0) return `${m} min`;
+      return m > 0 ? `${h}h ${m}m` : `${h}h`;
     }, [resumo?.tempoEstimadoMin]);
 
     const economiaEstimada = useMemo(() => resumo?.economiaEstimadaRs ?? 0, [resumo?.economiaEstimadaRs]);
@@ -92,7 +93,7 @@ export const ResumoRotaCard: React.FC<ResumoRotaCardProps> = React.memo(
             <Text className="text-emerald-400 font-black text-xl" maxFontSizeMultiplier={1.3}>
               R$ {economiaEstimada.toFixed(2).replace(".", ",")}
             </Text>
-            <Text className="text-[#94a3b8] text-[11px] font-medium mt-0.5">economia</Text>
+            <Text className="text-[#94a3b8] text-[11px] font-medium mt-0.5">combustível</Text>
           </View>
         </View>
       </View>

@@ -13,6 +13,7 @@ import {
   GestureResponderEvent,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
+import Svg, { Path } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Parada } from "../screens/HomeScreen";
@@ -67,11 +68,14 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
     }
   }, [visivel, parada]);
 
-  // PanResponder para o Canvas de Assinatura Digital na tela (suporte a múltiplos traços)
+  // PanResponder para o Canvas de Assinatura Digital na tela (suporte a múltiplos traços contínuos)
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (evt: GestureResponderEvent) => {
         setDesenhando(true);
         const { locationX, locationY } = evt.nativeEvent;
@@ -81,7 +85,12 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
       onPanResponderMove: (evt: GestureResponderEvent) => {
         const { locationX, locationY } = evt.nativeEvent;
         tracoAtualRef.current.push({ x: locationX, y: locationY });
-        setTracos((anteriores) => [...anteriores.slice(0, -1), { pontos: [...tracoAtualRef.current] }]);
+        setTracos((anteriores) => {
+          if (anteriores.length === 0) return [{ pontos: [...tracoAtualRef.current] }];
+          const copia = [...anteriores];
+          copia[copia.length - 1] = { pontos: [...tracoAtualRef.current] };
+          return copia;
+        });
       },
       onPanResponderRelease: () => {
         setDesenhando(false);
@@ -335,32 +344,38 @@ export const ComprovanteEntregaModal: React.FC<ComprovanteEntregaModalProps> = (
 
                   <View
                     {...panResponder.panHandlers}
-                    className="bg-[#0b1320] h-32 rounded-xl border border-dashed border-[#22334f] justify-center items-center relative overflow-hidden"
+                    className="bg-[#0b1320] h-36 rounded-xl border border-dashed border-[#22334f] justify-center items-center relative overflow-hidden"
                   >
-                    {!temAssinatura ? (
+                    {!temAssinatura && !desenhando && (
                       <Text className="text-[#475569] text-xs pointer-events-none">Peça para o cliente assinar com o dedo aqui</Text>
-                    ) : (
-                      <View className="w-full h-full relative">
-                        {tracos.map((traco, tIdx) => (
-                          <View key={tIdx}>
-                            {traco.pontos.map((p, pIdx) => (
-                              <View
-                                key={pIdx}
-                                style={{
-                                  position: "absolute",
-                                  left: p.x - 2,
-                                  top: p.y - 2,
-                                  width: 4,
-                                  height: 4,
-                                  borderRadius: 2,
-                                  backgroundColor: "#22c55e",
-                                }}
-                              />
-                            ))}
-                          </View>
-                        ))}
-                      </View>
                     )}
+                    <Svg
+                      style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+                      pointerEvents="none"
+                    >
+                      {tracos.map((traco, tIdx) => {
+                        if (!traco.pontos || traco.pontos.length === 0) return null;
+                        const d = traco.pontos.reduce((acc, p, idx) => {
+                          if (idx === 0) return `M ${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
+                          return `${acc} L ${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
+                        }, "");
+                        return (
+                          <Path
+                            key={tIdx}
+                            d={
+                              traco.pontos.length === 1
+                                ? `${d} L ${(traco.pontos[0].x + 0.1).toFixed(1)} ${(traco.pontos[0].y + 0.1).toFixed(1)}`
+                                : d
+                            }
+                            stroke="#22c55e"
+                            strokeWidth={3}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            fill="none"
+                          />
+                        );
+                      })}
+                    </Svg>
                   </View>
                 </View>
               </View>

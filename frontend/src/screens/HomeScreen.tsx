@@ -91,7 +91,7 @@ export default function HomeScreen() {
       const response = await api.get("/rotas/atual", config);
 
       if (response.data) {
-        const paradasServidor = response.data.paradas || [];
+        const paradasServidor: Parada[] = response.data.paradas || [];
         const resumoServidor = response.data.resumo || null;
 
         setRotas(paradasServidor);
@@ -99,7 +99,9 @@ export default function HomeScreen() {
         setIsOffline(false);
 
         await salvarRotasLocalmente(paradasServidor, resumoServidor);
+        return paradasServidor;
       }
+      return [];
     } catch {
       setIsOffline(true);
       const cacheLocal = await carregarRotasLocalmente();
@@ -108,6 +110,7 @@ export default function HomeScreen() {
       if (cacheLocal.paradas.length > 0) {
         alertaApp("Modo offline", "Não foi possível conectar ao servidor. Exibindo a rota salva localmente.");
       }
+      return cacheLocal.paradas;
     } finally {
       setCarregando(false);
     }
@@ -122,15 +125,16 @@ export default function HomeScreen() {
   const lotes = useMemo(() => calcularLotes(rotas), [rotas]);
   const temVariosLotes = lotes.length > 1;
 
-  const handleIniciarRota = useCallback(async () => {
-    if (rotas.length === 0) {
+  const handleIniciarRota = useCallback(async (paradasParaNavegar?: Parada[]) => {
+    const lista = paradasParaNavegar && paradasParaNavegar.length > 0 ? paradasParaNavegar : rotas;
+    if (lista.length === 0) {
       alertaApp("Atenção", "Nenhuma rota para iniciar.");
       return;
     }
 
     try {
       const gps = await obterCoordenadasGPS();
-      await abrirRotaGoogleMaps(rotas, loteAtivoIndex, gps);
+      await abrirRotaGoogleMaps(lista, loteAtivoIndex, gps);
     } catch {
       alertaApp("Erro", "Não foi possível abrir o Google Maps.");
     }
@@ -183,7 +187,7 @@ export default function HomeScreen() {
         return;
       }
 
-      await carregarEntregas();
+      const novasParadas = await carregarEntregas();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       alertaApp(
@@ -198,7 +202,7 @@ export default function HomeScreen() {
             text: "Iniciar no GPS",
             style: "default",
             onPress: () => {
-              handleIniciarRota();
+              handleIniciarRota(novasParadas);
             },
           },
         ],
@@ -209,7 +213,7 @@ export default function HomeScreen() {
     } finally {
       setOtimizando(false);
     }
-  }, [rotas.length, carregarEntregas, handleIniciarRota]);
+  }, [rotas.length, carregarEntregas, handleIniciarRota, configPonto]);
 
   const confirmarFinalizacaoLote = useCallback(
     async (idsSelecionados: string[]) => {
@@ -430,7 +434,7 @@ export default function HomeScreen() {
             <>
               <TouchableOpacity
                 className="flex-1 h-[52px] rounded-xl flex-row justify-center items-center mt-2 bg-[#22c55e] active:bg-[#16a34a]"
-                onPress={handleIniciarRota}
+                onPress={() => handleIniciarRota()}
                 disabled={finalizando}
                 accessibilityRole="button"
                 accessibilityLabel={temVariosLotes ? `Iniciar Lote ${loteAtivoIndex + 1} no GPS` : "Iniciar no GPS"}

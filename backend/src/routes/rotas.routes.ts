@@ -532,7 +532,7 @@ async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyRep
       const response = await axios.get(osrmUrl, {
         params: { overview: "false" },
         headers: { "User-Agent": "DeliveryFastApp/1.0 (deliveryfast@contato.local)" },
-        timeout: 2000,
+        timeout: 4000,
       });
 
       if (response?.data?.routes?.[0]) {
@@ -542,7 +542,7 @@ async function listarRotaAtualHandler(request: FastifyRequest, reply: FastifyRep
       }
     } catch (err) {}
 
-    // Fallback instantâneo via Haversine se o OSRM falhar ou demorar mais de 2s
+    // Fallback instantâneo via Haversine se o OSRM falhar ou demorar mais de 4s
     if (!obteveComOSRM) {
       const pontosParaFallback: { lat: number; lon: number }[] = [];
       if (lat && lon && Number(lat) !== 0 && Number(lon) !== 0) {
