@@ -10,6 +10,11 @@ const app = fastify({ logger: true });
 // Habilita requisições do App React Native (CORS)
 app.register(cors, { origin: "*" });
 
+// Endpoint leve para monitoramento / keep-alive (UptimeRobot, cron-job.org)
+app.get("/health", async () => {
+  return { status: "ok", uptime: process.uptime() };
+});
+
 // Registra os endpoints da API
 app.register(rotasRoutes);
 
