@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { StatusBar, Text, TouchableOpacity, View, ActivityIndicator, ScrollView, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -56,6 +57,20 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [gpsUsuario, setGpsUsuario] = useState<{ lat?: number; lon?: number } | undefined>();
+
+  // ── Wakelock: mantém a tela ligada enquanto há entregas pendentes ──────────
+  const WAKELOCK_TAG = "HomeScreen-rota-ativa";
+  useEffect(() => {
+    if (rotas.length > 0) {
+      activateKeepAwakeAsync(WAKELOCK_TAG);
+    } else {
+      deactivateKeepAwake(WAKELOCK_TAG);
+    }
+    return () => {
+      deactivateKeepAwake(WAKELOCK_TAG);
+    };
+  }, [rotas.length]);
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const obterCoordenadasGPS = async (): Promise<{ lat?: number; lon?: number }> => {
     try {

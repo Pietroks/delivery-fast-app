@@ -28,8 +28,10 @@ Aplicativo mobile completo desenvolvido para entregadores e pequenos comércios 
   - Envio instantâneo formatado com 1 clique para o WhatsApp do lojista/restaurante.
 - **[x] Cockpit Tático de Pilotagem**: Interface escura de alto contraste para motos com alvos de toque $\ge 48\text{dp}$, endereço em 2 linhas sem truncamento, discador telefônico nativo integrado e menu seguro de paradas protegido contra toques acidentais.
 - **[x] Card de Parada Ativa (HUD Solar)**: Card de topo destacado com botão primário de 54dp de alta visibilidade, atalhos de GPS e contato.
+- **[x] Tela Sempre Ativa em Rota (Wakelock)**: Prevenção automática de bloqueio de tela com `expo-keep-awake` enquanto houver entregas pendentes na fila.
 - **[x] Controle & Reversão Rápida ("Desfazer" de 5s)**: Toast tático flutuante que permite desfazer baixas ou remoções acidentais em 1 toque antes da confirmação definitiva.
 - **[x] Resiliência Offline & Indicador de GPS**: Monitoramento ativo de conectividade no painel com banner explicativo e garantia de persistência local das baixas no aparelho.
+- **[x] Landing Page de Venda Direta (`index.html`)**: Página comercial na raiz para distribuição direta de APK Android com checkout via WhatsApp/PIX.
 - **[x] 122 Testes Automatizados**: 100% de sucesso em testes de frontend (89 no Jest em 14 suítes) e backend (33 no Vitest em 3 suítes).
 
 ---
@@ -42,6 +44,7 @@ Aplicativo mobile completo desenvolvido para entregadores e pequenos comércios 
 - **TypeScript (`~5.9.2`)**
 - **NativeWind (`^4.2.6`) / TailwindCSS (`^3.4.19`)** (Dark mode nativo)
 - **React Navigation 7** (Bottom Tabs e Native Stack)
+- **expo-keep-awake (`~14.0.3`)** (Wakelock contínuo em rota ativa)
 - **react-native-svg (`15.15.4`)** (Assinatura digital vetorial contínua)
 - **Expo Location (`~57.0.20`)** (Leitura rápida de GPS e geocodificação reversa)
 - **Expo Image Picker (`~57.0.20`)** (Captura de fotos de comprovante)

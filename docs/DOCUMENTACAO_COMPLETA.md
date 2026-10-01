@@ -50,6 +50,8 @@
     - [10.4. Ergonomia dos Cards de Próximas Paradas & Prevenção de Truncamento](#104-ergonomia-dos-cards-de-próximas-paradas--prevenção-de-truncamento)
     - [10.5. Telemetria Solar e Métricas Operacionais (Combustível & Minutos)](#105-telemetria-solar-e-métricas-operacionais-combustível--minutos)
     - [10.6. Atualização Tecnológica do Expo Go (SDK 57.0.26 / React Native 0.86.3)](#106-atualização-tecnológica-do-expo-go-sdk-57026--react-native-0863)
+    - [10.7. Gestão de Tela Ativa em Rota (Wakelock com `expo-keep-awake`)](#107-gestão-de-tela-ativa-em-rota-wakelock-com-expo-keep-awake)
+    - [10.8. Landing Page Comercial de Alta Conversão (Direto no Celular / APK)](#108-landing-page-comercial-de-alta-conversão-direto-no-celular--apk)
 
 
 ---
@@ -1167,6 +1169,21 @@ Esta seção documenta as intervenções arquiteturais e correções pontuais im
 * **Compatibilidade**: Atualização do ecossistema Expo para a versão `~57.0.26` e React Native `0.86.3`.
 * **Ambiente de Testes**: Ajuste do `@react-native/jest-preset` e `react-test-renderer` para `19.2.3`, mantendo a suíte de 122 testes rigorosamente íntegra e verde (89 no frontend e 33 no backend).
 * **Guia de Conectividade Expo Go**: Documentada a resolução de problemas de download de atualização remota causados por bloqueio de DNS privado em dispositivos móveis e liberação de portas de firewall.
+
+### 10.7. Gestão de Tela Ativa em Rota (Wakelock com `expo-keep-awake`)
+* **Problema Operacional**: Durante deslocamentos de moto com o aparelho acoplado ao suporte de guidão, o bloqueio automático de tela após inatividade do sistema operacional forçava o entregador a soltar as manoplas para desbloquear o dispositivo, gerando risco de segurança e perda de foco nas próximas paradas.
+* **Solução Implementada**:
+  - Integração do pacote nativo `expo-keep-awake`.
+  - Controle reativo via `useEffect` em [`HomeScreen.tsx`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/frontend/src/screens/HomeScreen.tsx): enquanto houver entregas pendentes na fila (`rotas.length > 0`), a tela do smartphone é mantida ativamente ligada através da tag idempotente `"HomeScreen-rota-ativa"`.
+  - Ao concluir ou limpar a rota, ou na desmontagem do componente, o lock é liberado automaticamente (`deactivateKeepAwake`), poupando bateria do aparelho.
+
+### 10.8. Landing Page Comercial de Alta Conversão (Direto no Celular / APK)
+* **Objetivo de Go-To-Market**: Apresentação e venda direta do aplicativo para entregadores autônomos e motoboys sem atrito de lojas proprietárias ou intermediários, com distribuição direta de APK Android e checkout via PIX no WhatsApp.
+* **Implementação (`index.html`)**:
+  - Construção alinhada integralmente ao design system do [`DESIGN.md`](file:///c:/Users/Pietrok/Desktop/delivery_fast_app/DESIGN.md) (paleta noturna tática `#0b1320`, cards `#152033`, tipografia Inter, acentos esmeralda `#22c55e`).
+  - Mockup realista e animado de smartphone exibindo as métricas reais do aplicativo (14,7 km, R$ 6,62 de combustível, cards táteis de entrega).
+  - Modelo de precificação por pagamento único (Básico R$ 29 / Completo Vitalício R$ 59), eliminando objeções de mensalidade.
+  - Fluxo claro em 3 etapas (WhatsApp -> PIX -> Instalação do APK) e FAQ sanando dúvidas de funcionamento offline, garantia e suporte.
 
 ---
 
