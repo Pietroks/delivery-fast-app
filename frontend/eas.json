@@ -11,6 +11,11 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://delivery-fast-backend.onrender.com/api/v1",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ojxqqrudhkapioqkcxre.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qeHFxcnVkaGthcGlvcWtjeHJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzODcxNDAsImV4cCI6MjEwMTk2MzE0MH0.KH5epmfU-btb136VJM1UFl-YkB56HxgLj_TU80TW2p8"
       }
     },
     "production": {
